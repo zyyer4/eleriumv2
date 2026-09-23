@@ -1503,8 +1503,161 @@ FastRebTab:AddButton(
 )
 
 --========================================================--
+-- REBIRTH TAB
+--========================================================--
+
+local RebirthTab =
+    window:AddTab("Rebirth")
+
+--========================================================--
+-- REBIRTH OPTIONS
+--========================================================--
+
+RebirthTab:AddLabel("").TextSize = 10
+RebirthTab:AddLabel("Rebirth Options").TextSize = 20
+
+local rebirthTarget = 1
+
+local targetRebirthActive = false
+local infiniteRebirthActive = false
+
+local targetToggle
+local infiniteToggle
+
+RebirthTab:AddTextBox(
+    "Rebirth Target",
+    function(value)
+
+        local number =
+            tonumber(value)
+
+        if number and number > 0 then
+
+            rebirthTarget =
+                math.floor(number)
+
+        end
+    end
+)
+
+targetToggle =
+    RebirthTab:AddSwitch(
+        "Auto Rebirth Target",
+        function(state)
+
+            targetRebirthActive =
+                state
+
+            if not state then
+                return
+            end
+
+            infiniteRebirthActive =
+                false
+
+            if infiniteToggle then
+
+                pcall(function()
+                    infiniteToggle:Set(false)
+                end)
+
+            end
+
+            task.spawn(function()
+
+                while targetRebirthActive do
+
+                    local statsFolder =
+                        Player:FindFirstChild(
+                            "leaderstats"
+                        )
+
+                    local rebirths =
+                        statsFolder
+                        and
+                        statsFolder:
+                        FindFirstChild(
+                            "Rebirths"
+                        )
+
+                    if
+                        rebirths
+                        and
+                        rebirths.Value >=
+                        rebirthTarget
+                    then
+
+                        targetRebirthActive =
+                            false
+
+                        pcall(function()
+                            targetToggle:Set(
+                                false
+                            )
+                        end)
+
+                        break
+                    end
+
+                    pcall(function()
+                        rebirthRemote:
+                        InvokeServer(
+                            "rebirthRequest"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    )
+
+infiniteToggle =
+    RebirthTab:AddSwitch(
+        "Auto Rebirth (Infinitely)",
+        function(state)
+
+            infiniteRebirthActive =
+                state
+
+            if not state then
+                return
+            end
+
+            targetRebirthActive =
+                false
+
+            if targetToggle then
+
+                pcall(function()
+                    targetToggle:Set(false)
+                end)
+
+            end
+
+            task.spawn(function()
+
+                while infiniteRebirthActive do
+
+                    pcall(function()
+                        rebirthRemote:
+                        InvokeServer(
+                            "rebirthRequest"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+
+            end)
+        end
+    )
+
+
+--========================================================--
 -- TOOLS TAB
 --========================================================--
+
 
 local ToolsTab =
     window:AddTab("Tools")
@@ -2761,150 +2914,6 @@ FarmingTab:AddSwitch(
 )
 
 --========================================================--
--- REBIRTH OPTIONS
---========================================================--
-
-FarmingTab:AddLabel("").TextSize = 10
-FarmingTab:AddLabel("Rebirth Options").TextSize = 20
-
-local rebirthTarget = 1
-
-local targetRebirthActive = false
-local infiniteRebirthActive = false
-
-local targetToggle
-local infiniteToggle
-
-FarmingTab:AddTextBox(
-    "Rebirth Target",
-    function(value)
-
-        local number =
-            tonumber(value)
-
-        if number and number > 0 then
-
-            rebirthTarget =
-                math.floor(number)
-
-        end
-    end
-)
-
-targetToggle =
-    FarmingTab:AddSwitch(
-        "Auto Rebirth Target",
-        function(state)
-
-            targetRebirthActive =
-                state
-
-            if not state then
-                return
-            end
-
-            infiniteRebirthActive =
-                false
-
-            if infiniteToggle then
-
-                pcall(function()
-                    infiniteToggle:Set(false)
-                end)
-
-            end
-
-            task.spawn(function()
-
-                while targetRebirthActive do
-
-                    local statsFolder =
-                        Player:FindFirstChild(
-                            "leaderstats"
-                        )
-
-                    local rebirths =
-                        statsFolder
-                        and
-                        statsFolder:
-                        FindFirstChild(
-                            "Rebirths"
-                        )
-
-                    if
-                        rebirths
-                        and
-                        rebirths.Value >=
-                        rebirthTarget
-                    then
-
-                        targetRebirthActive =
-                            false
-
-                        pcall(function()
-                            targetToggle:Set(
-                                false
-                            )
-                        end)
-
-                        break
-                    end
-
-                    pcall(function()
-                        rebirthRemote:
-                        InvokeServer(
-                            "rebirthRequest"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-            end)
-        end
-    )
-
-infiniteToggle =
-    FarmingTab:AddSwitch(
-        "Auto Rebirth (Infinitely)",
-        function(state)
-
-            infiniteRebirthActive =
-                state
-
-            if not state then
-                return
-            end
-
-            targetRebirthActive =
-                false
-
-            if targetToggle then
-
-                pcall(function()
-                    targetToggle:Set(false)
-                end)
-
-            end
-
-            task.spawn(function()
-
-                while infiniteRebirthActive do
-
-                    pcall(function()
-                        rebirthRemote:
-                        InvokeServer(
-                            "rebirthRequest"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-
-            end)
-        end
-    )
-
---========================================================--
 -- AUTO TELEPORT MUSCLE KING
 --========================================================--
 
@@ -3084,6 +3093,35 @@ FarmingTab:AddButton(
         pressE()
     end
 )
+
+--========================================================--
+-- INDUSTRIAL GYM SUPER SQUAT
+--========================================================--
+
+FarmingTab:AddButton(
+    "Industrial Gym Super Squat",
+    function()
+
+        local root =
+            getRootPart()
+
+        if not root then
+            return
+        end
+
+        root.CFrame =
+            CFrame.new(
+                -5488,
+                61,
+                4641
+            )
+
+        task.wait(0.2)
+
+        pressE()
+    end
+)
+
 
 --========================================================--
 -- EQUIP SWIFT SAMURAI
