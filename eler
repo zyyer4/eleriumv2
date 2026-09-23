@@ -1377,57 +1377,81 @@ autoShakeSwitch:Set(false)
 -- FAST REBIRTH FORTUNE WHEEL
 --========================================================--
 
+local fortuneWheelRunning = false
+local fortuneWheelLoopId = 0
+_G.JohnnyAutoSpinWheel = false
+
+local function spinFortuneWheelOnce()
+    local ok, result = pcall(function()
+
+        local events =
+            ReplicatedStorage:WaitForChild(
+                "rEvents",
+                5
+            )
+
+        local remote =
+            events:WaitForChild(
+                "openFortuneWheelRemote",
+                5
+            )
+
+        local chances =
+            ReplicatedStorage:WaitForChild(
+                "fortuneWheelChances",
+                5
+            )
+
+        local wheel =
+            chances:WaitForChild(
+                "Fortune Wheel",
+                5
+            )
+
+        return remote:InvokeServer(
+            "openFortuneWheel",
+            wheel
+        )
+    end)
+
+    if not ok then
+        warn("[Johnny] Fortune Wheel failed:", result)
+        return false
+    end
+
+    return true
+end
+
+local function setFortuneWheel(state)
+    fortuneWheelRunning = state
+    fortuneWheelLoopId += 1
+
+    local myLoopId = fortuneWheelLoopId
+
+    if not state then
+        return
+    end
+
+    task.spawn(function()
+
+        while
+            fortuneWheelRunning
+            and
+            myLoopId == fortuneWheelLoopId
+            and
+            not _G.JohnnyScriptDestroyed
+        do
+
+            spinFortuneWheelOnce()
+            task.wait(1)
+        end
+    end)
+end
+
 FastRebTab:AddSwitch(
     "Spin Fortune Wheel",
     function(state)
-
-        _G.JohnnyAutoSpinWheel = state
-
-        if not state then
-            return
-        end
-
-        task.spawn(function()
-
-            while
-                _G.JohnnyAutoSpinWheel
-            do
-
-                pcall(function()
-
-                    local chances =
-                        ReplicatedStorage:
-                        FindFirstChild(
-                            "fortuneWheelChances"
-                        )
-
-                    local remote =
-                        rEvents:
-                        FindFirstChild(
-                            "openFortuneWheelRemote"
-                        )
-
-                    local wheel =
-                        chances and
-                        chances:FindFirstChild(
-                            "Fortune Wheel"
-                        )
-
-                    if remote and wheel then
-
-                        remote:InvokeServer(
-                            "openFortuneWheel",
-                            wheel
-                        )
-
-                    end
-                end)
-
-                task.wait(1)
-            end
-
-        end)
-
+        setFortuneWheel(state)
     end
 )
 
@@ -1477,6 +1501,275 @@ FastRebTab:AddButton(
 
     end
 )
+
+--========================================================--
+-- TOOLS TAB
+--========================================================--
+
+local ToolsTab =
+    window:AddTab("Tools")
+
+--========================================================--
+-- AUTO EXERCISES
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Auto Exercises").TextSize = 20
+
+local function addAutoExercise(
+    exerciseName
+)
+
+    local key =
+        "JohnnyAuto" ..
+        exerciseName:gsub(
+            "%s",
+            ""
+        )
+
+    ToolsTab:AddSwitch(
+        "Auto " .. exerciseName,
+        function(state)
+
+            _G[key] = state
+
+            if not state then
+                return
+            end
+
+            task.spawn(function()
+
+                while _G[key] do
+
+                    local character =
+                        Player.Character
+
+                    local backpack =
+                        Player.Backpack
+
+                    local tool =
+                        (
+                            character
+                            and
+                            character:FindFirstChild(
+                                exerciseName
+                            )
+                        )
+                        or
+                        (
+                            backpack
+                            and
+                            backpack:FindFirstChild(
+                                exerciseName
+                            )
+                        )
+
+                    if tool and character then
+
+                        local humanoid =
+                            character:
+                            FindFirstChildOfClass(
+                                "Humanoid"
+                            )
+
+                        if humanoid
+                            and
+                            tool.Parent ==
+                            backpack
+                        then
+
+                            pcall(function()
+                                humanoid:EquipTool(
+                                    tool
+                                )
+                            end)
+                        end
+                    end
+
+                    pcall(function()
+                        muscleEvent:FireServer(
+                            "rep"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    )
+end
+
+addAutoExercise("Weight")
+addAutoExercise("Pushups")
+addAutoExercise("Handstands")
+addAutoExercise("Situps")
+addAutoExercise("Punch")
+
+--========================================================--
+-- FAST TOOLS
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Fast Tools").TextSize = 20
+
+ToolsTab:AddSwitch(
+    "Fast Tools",
+    function(state)
+
+        _G.JohnnyFastTools =
+            state
+
+        local settings = {
+
+            {
+                "Punch",
+                "attackTime",
+                state and 0 or 0.35
+            },
+
+            {
+                "Ground Slam",
+                "attackTime",
+                state and 0 or 6
+            },
+
+            {
+                "Stomp",
+                "attackTime",
+                state and 0 or 7
+            },
+
+            {
+                "Handstands",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Pushups",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Weight",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Situps",
+                "repTime",
+                state and 0 or 1
+            }
+        }
+
+        local backpack =
+            Player:WaitForChild(
+                "Backpack"
+            )
+
+        for _, entry in ipairs(
+            settings
+        ) do
+
+            local toolName =
+                entry[1]
+
+            local attributeName =
+                entry[2]
+
+            local value =
+                entry[3]
+
+            local tool =
+                backpack:FindFirstChild(
+                    toolName
+                )
+                or
+                (
+                    Player.Character
+                    and
+                    Player.Character:
+                    FindFirstChild(
+                        toolName
+                    )
+                )
+
+            local object =
+                tool and
+                tool:FindFirstChild(
+                    attributeName
+                )
+
+            if object then
+
+                pcall(function()
+                    object.Value =
+                        value
+                end)
+
+            end
+        end
+    end
+)
+
+--========================================================--
+-- GYM TELEPORTS
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Gym Teleports").TextSize = 20
+
+local gymLocations = {
+
+    ["Jungle Bench Press"] =
+        CFrame.new(
+            -8173,
+            64,
+            1898
+        ),
+
+    ["Jungle Pull Ups"] =
+        CFrame.new(
+            -8666,
+            34,
+            2070
+        ),
+
+    ["Jungle Boulder"] =
+        CFrame.new(
+            -8621,
+            34,
+            2684
+        )
+}
+
+for name, target in pairs(
+    gymLocations
+) do
+
+    ToolsTab:AddButton(
+        name,
+        function()
+
+            local root =
+                getRootPart()
+
+            if not root then
+                return
+            end
+
+            root.CFrame =
+                target
+
+            task.wait(0.2)
+
+            pressE()
+
+        end
+    )
+end
 
 --========================================================--
 -- FAST FARM TAB
@@ -2463,318 +2756,9 @@ farmingShakeSwitch:Set(false)
 FarmingTab:AddSwitch(
     "Spin Fortune Wheel",
     function(state)
-
-        _G.JohnnyAutoSpinWheel =
-            state
-
-        if not state then
-            return
-        end
-
-        task.spawn(function()
-
-            while
-                _G.JohnnyAutoSpinWheel
-            do
-
-                pcall(function()
-
-                    local chances =
-                        ReplicatedStorage:
-                        FindFirstChild(
-                            "fortuneWheelChances"
-                        )
-
-                    local remote =
-                        rEvents:
-                        FindFirstChild(
-                            "openFortuneWheelRemote"
-                        )
-
-                    local wheel =
-                        chances and
-                        chances:FindFirstChild(
-                            "Fortune Wheel"
-                        )
-
-                    if remote and wheel then
-
-                        remote:InvokeServer(
-                            "openFortuneWheel",
-                            wheel
-                        )
-
-                    end
-                end)
-
-                task.wait(1)
-            end
-
-        end)
+        setFortuneWheel(state)
     end
 )
-
---========================================================--
--- AUTO EXERCISES
---========================================================--
-
-FarmingTab:AddLabel("").TextSize = 10
-FarmingTab:AddLabel("Auto Exercises").TextSize = 20
-
-local function addAutoExercise(
-    exerciseName
-)
-
-    local key =
-        "JohnnyAuto" ..
-        exerciseName:gsub(
-            "%s",
-            ""
-        )
-
-    FarmingTab:AddSwitch(
-        "Auto " .. exerciseName,
-        function(state)
-
-            _G[key] = state
-
-            if not state then
-                return
-            end
-
-            task.spawn(function()
-
-                while _G[key] do
-
-                    local character =
-                        Player.Character
-
-                    local backpack =
-                        Player.Backpack
-
-                    local tool =
-                        (
-                            character
-                            and
-                            character:FindFirstChild(
-                                exerciseName
-                            )
-                        )
-                        or
-                        (
-                            backpack
-                            and
-                            backpack:FindFirstChild(
-                                exerciseName
-                            )
-                        )
-
-                    if tool and character then
-
-                        local humanoid =
-                            character:
-                            FindFirstChildOfClass(
-                                "Humanoid"
-                            )
-
-                        if humanoid
-                            and
-                            tool.Parent ==
-                            backpack
-                        then
-
-                            pcall(function()
-                                humanoid:EquipTool(
-                                    tool
-                                )
-                            end)
-                        end
-                    end
-
-                    pcall(function()
-                        muscleEvent:FireServer(
-                            "rep"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-            end)
-        end
-    )
-end
-
-addAutoExercise("Weight")
-addAutoExercise("Pushups")
-addAutoExercise("Handstands")
-addAutoExercise("Situps")
-addAutoExercise("Punch")
-
---========================================================--
--- FAST TOOLS
---========================================================--
-
-FarmingTab:AddLabel("").TextSize = 10
-FarmingTab:AddLabel("Fast Tools").TextSize = 20
-
-FarmingTab:AddSwitch(
-    "Fast Tools",
-    function(state)
-
-        _G.JohnnyFastTools =
-            state
-
-        local settings = {
-
-            {
-                "Punch",
-                "attackTime",
-                state and 0 or 0.35
-            },
-
-            {
-                "Ground Slam",
-                "attackTime",
-                state and 0 or 6
-            },
-
-            {
-                "Stomp",
-                "attackTime",
-                state and 0 or 7
-            },
-
-            {
-                "Handstands",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Pushups",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Weight",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Situps",
-                "repTime",
-                state and 0 or 1
-            }
-        }
-
-        local backpack =
-            Player:WaitForChild(
-                "Backpack"
-            )
-
-        for _, entry in ipairs(
-            settings
-        ) do
-
-            local toolName =
-                entry[1]
-
-            local attributeName =
-                entry[2]
-
-            local value =
-                entry[3]
-
-            local tool =
-                backpack:FindFirstChild(
-                    toolName
-                )
-                or
-                (
-                    Player.Character
-                    and
-                    Player.Character:
-                    FindFirstChild(
-                        toolName
-                    )
-                )
-
-            local object =
-                tool and
-                tool:FindFirstChild(
-                    attributeName
-                )
-
-            if object then
-
-                pcall(function()
-                    object.Value =
-                        value
-                end)
-
-            end
-        end
-    end
-)
-
---========================================================--
--- GYM TELEPORTS
---========================================================--
-
-FarmingTab:AddLabel("").TextSize = 10
-FarmingTab:AddLabel("Gym Teleports").TextSize = 20
-
-local gymLocations = {
-
-    ["Jungle Bench Press"] =
-        CFrame.new(
-            -8173,
-            64,
-            1898
-        ),
-
-    ["Jungle Pull Ups"] =
-        CFrame.new(
-            -8666,
-            34,
-            2070
-        ),
-
-    ["Jungle Boulder"] =
-        CFrame.new(
-            -8621,
-            34,
-            2684
-        )
-}
-
-for name, target in pairs(
-    gymLocations
-) do
-
-    FarmingTab:AddButton(
-        name,
-        function()
-
-            local root =
-                getRootPart()
-
-            if not root then
-                return
-            end
-
-            root.CFrame =
-                target
-
-            task.wait(0.2)
-
-            pressE()
-
-        end
-    )
-end
 
 --========================================================--
 -- REBIRTH OPTIONS
@@ -3147,6 +3131,9 @@ infoTab:AddButton(
 
         _G.JohnnyAutoSpinWheel =
             false
+
+        fortuneWheelRunning = false
+        fortuneWheelLoopId += 1
 
         _G.JohnnyMuscleKingTP =
             false
