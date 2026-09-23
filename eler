@@ -200,10 +200,6 @@ FarmingTab:AddButton(
         if openCompactMode then
             openCompactMode("Fast Farm")
         end
-        if not fastRepRunning then
-            fastRepRunning = true
-            task.spawn(fastRepLoop)
-        end
     end
 )
 
@@ -1840,11 +1836,6 @@ FastRebTab:AddButton(
         if openCompactMode then
             openCompactMode("Fast Rebirth")
         end
-        if not isFastRebirthRunning then
-            isFastRebirthRunning = true
-            fastRebirthStartTime = tick()
-            task.spawn(fastRebirthLoop)
-        end
     end
 )
 
@@ -3314,6 +3305,7 @@ end
 
 local compactModeGui = nil
 local compactModePaceFormat = "Full"
+local compactNightMode = false
 
 local compactPaceFormats = {
     Full = { reb = "Pace: %s / Hour | %s / Day | %s / Week", farm = "Strength: %s/H | %s/D | %s/W" },
@@ -3439,7 +3431,7 @@ local function openCompactMode(modeName)
 
     local frame = Instance.new("Frame")
     frame.Name = "ModePanel"
-    frame.Size = UDim2.fromOffset(390, modeName == "Fast Farm" and 350 or 310)
+    frame.Size = UDim2.fromOffset(390, modeName == "Fast Farm" and 300 or 260)
     frame.Position = UDim2.fromOffset(25, 100)
     frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
     frame.BackgroundTransparency = 0.10
@@ -3560,12 +3552,38 @@ local function openCompactMode(modeName)
         stats.Text = string.format("Rebirths: %s",formatRebirthNumber(rebirthsStat.Value))
     end
 
+    local startButton = makeModeButton(content, modeName == "Fast Farm" and "START FAST FARM" or "START FAST REBIRTH", function()
+        if modeName == "Fast Farm" then
+            if not fastRepRunning then
+                fastRepRunning = true
+                task.spawn(fastRepLoop)
+            end
+        else
+            if not isFastRebirthRunning then
+                isFastRebirthRunning = true
+                fastRebirthStartTime = tick()
+                task.spawn(fastRebirthLoop)
+            end
+        end
+    end, 235)
+
+    local nightButton = makeModeButton(content, "Night Mode: OFF", function()
+        compactNightMode = not compactNightMode
+        nightButton.Text = compactNightMode and "Night Mode: ON" or "Night Mode: OFF"
+        if compactNightMode then
+            frame.BackgroundColor3 = Color3.fromRGB(8, 10, 20)
+            frame.BackgroundTransparency = 0.08
+            gradient.Enabled = false
+            stroke.Color = Color3.fromRGB(90, 105, 150)
+        else
+            frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
+            frame.BackgroundTransparency = 0.10
+            gradient.Enabled = true
+            stroke.Color = Color3.fromRGB(150,210,255)
+        end
+    end, 235)
+
     if modeName == "Fast Farm" then
-        makeModeButton(content,"FAST FARM: ON / OFF",function()
-            fastRepRunning = not fastRepRunning
-            if fastRepRunning then task.spawn(fastRepLoop) end
-            refreshFarm()
-        end,220)
 
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
@@ -3584,23 +3602,11 @@ local function openCompactMode(modeName)
             end,82)
         end
 
-        makeModeButton(content,"Industrial Gym Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,190)
-        makeModeButton(content,"Industrial Gym Super Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,220)
+        makeModeButton(content,"Industrial Gym Regular Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,235)
 
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshFarm(); task.wait(.5) end end)
         refreshFarm()
     else
-        makeModeButton(content,"FAST REBIRTH: ON / OFF",function()
-            isFastRebirthRunning = not isFastRebirthRunning
-            if isFastRebirthRunning then
-                fastRebirthStartTime=tick()
-                task.spawn(fastRebirthLoop)
-            else
-                fastRebirthTotalElapsed += math.max(0,tick()-fastRebirthStartTime)
-            end
-            refreshReb()
-        end,220)
-
         local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,75) end
@@ -3609,13 +3615,9 @@ local function openCompactMode(modeName)
         refreshReb()
     end
 
-    -- This is the important part: replace the MAIN UI after the compact UI
-    -- has been successfully parented, without destroying the Lua script.
-    task.defer(function()
-        if compactModeGui == gui and gui.Parent then
-            destroyMainUiForCompactMode()
-        end
-    end)
+    -- Hand off completely to the selected mode: remove the full Elerium UI
+    -- immediately. The selected mode remains OFF until its START button is pressed.
+    destroyMainUiForCompactMode()
 end
 
 --========================================================--
