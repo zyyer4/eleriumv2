@@ -200,6 +200,10 @@ FarmingTab:AddButton(
         if openCompactMode then
             openCompactMode("Fast Farm")
         end
+        if not fastRepRunning then
+            fastRepRunning = true
+            task.spawn(fastRepLoop)
+        end
     end
 )
 
@@ -1823,11 +1827,23 @@ end)
 local FastRebTab =
     window:AddTab("Fast Rebirth")
 
+-- Forward declarations: these are referenced by the mode button callback
+-- before the main Fast Rebirth state/loop is declared below.
+local fastRebirthLoop
+local isFastRebirthRunning
+local fastRebirthStartTime
+local fastRebirthTotalElapsed
+
 FastRebTab:AddButton(
     "Fast Reb Mode",
     function()
         if openCompactMode then
             openCompactMode("Fast Rebirth")
+        end
+        if not isFastRebirthRunning then
+            isFastRebirthRunning = true
+            fastRebirthStartTime = tick()
+            task.spawn(fastRebirthLoop)
         end
     end
 )
@@ -1836,9 +1852,9 @@ FastRebTab:AddButton(
 -- FAST REBIRTH UI
 --========================================================--
 
-local isFastRebirthRunning = false
-local fastRebirthStartTime = 0
-local fastRebirthTotalElapsed = 0
+isFastRebirthRunning = false
+fastRebirthStartTime = 0
+fastRebirthTotalElapsed = 0
 
 local initialRebirths =
     rebirthsStat.Value
@@ -2202,7 +2218,7 @@ local function doFastRebirth()
     end
 end
 
-local function fastRebirthLoop()
+fastRebirthLoop = function()
 
     while isFastRebirthRunning do
 
@@ -3293,71 +3309,71 @@ for name, target in pairs(
 end
 
 --========================================================--
--- COMPACT MODE UI (REPLACED / ROBUST VERSION)
+-- COMPACT MODE UI
 --========================================================--
 
 local compactModeGui = nil
 local compactModePaceFormat = "Full"
 
 local compactPaceFormats = {
-    Full = {
-        reb = "Pace: %s / Hour | %s / Day | %s / Week",
-        farm = "Strength: %s/H | %s/D | %s/W"
-    },
-    Short = {
-        reb = "Pace: %s/H | %s/D | %s/W",
-        farm = "STR %s/H | %s/D | %s/W"
-    },
-    Compact = {
-        reb = "P: %sH | %sD | %sW",
-        farm = "S %sH | %sD | %sW"
-    },
-    Mini = {
-        reb = "%sH / %sD / %sW",
-        farm = "S %s/%s/%s"
-    }
+    Full = { reb = "Pace: %s / Hour | %s / Day | %s / Week", farm = "Strength: %s/H | %s/D | %s/W" },
+    Short = { reb = "Pace: %s/H | %s/D | %s/W", farm = "STR %s/H | %s/D | %s/W" },
+    Compact = { reb = "P: %sH | %sD | %sW", farm = "S %sH | %sD | %sW" },
+    Mini = { reb = "%sH / %sD / %sW", farm = "S %s/%s/%s" }
 }
 
--- Never destroy the actual Lua script here.
--- Never depend on the Elerium GUI being named exactly "imgui".
--- The compact window is a separate overlay and is created first.
 local function getJohnnyGuiRoot()
-    local root = nil
-
-    pcall(function()
-        if type(gethui) == "function" then
-            root = gethui()
+    local root
+    if type(gethui) == "function" then
+        local ok, result = pcall(gethui)
+        if ok and typeof(result) == "Instance" then
+            root = result
         end
-    end)
-
-    if not root then
-        pcall(function()
-            root = game:GetService("CoreGui")
-        end)
     end
-
+    if not root then
+        local ok, result = pcall(function() return game:GetService("CoreGui") end)
+        if ok and typeof(result) == "Instance" then
+            root = result
+        end
+    end
     if not root then
         root = Player:WaitForChild("PlayerGui")
     end
-
     return root
+end
+
+local function findMainJohnnyGui()
+    local roots = { getJohnnyGuiRoot() }
+    pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
+    pcall(function() table.insert(roots, Player:WaitForChild("PlayerGui")) end)
+
+    for _, root in ipairs(roots) do
+        if root and typeof(root) == "Instance" then
+            local found = root:FindFirstChild("imgui", true)
+            if found then
+                return found
+            end
+        end
+    end
+    return nil
+end
+
+local function destroyMainUiForCompactMode()
+    local imgui = findMainJohnnyGui()
+    if imgui then
+        pcall(function() imgui:Destroy() end)
+    end
 end
 
 local function destroyCompactMode()
     if compactModeGui then
-        pcall(function()
-            compactModeGui:Destroy()
-        end)
+        pcall(function() compactModeGui:Destroy() end)
         compactModeGui = nil
     end
-
-    -- Also remove any stale copy left by a previous execution.
     local root = getJohnnyGuiRoot()
     pcall(function()
         local old = root:FindFirstChild("JohnnyCompactMode")
-        if old then
-            old:Destroy()
-        end
+        if old then old:Destroy() end
     end)
 end
 
@@ -3366,14 +3382,15 @@ local function makeModeButton(parent, text, callback, width)
     button.Name = "ModeButton"
     button.Size = UDim2.new(0, width or 120, 0, 32)
     button.BackgroundColor3 = Color3.fromRGB(55, 70, 105)
-    button.BackgroundTransparency = 0.10
+    button.BackgroundTransparency = 0.08
     button.BorderSizePixel = 0
     button.Text = text
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextColor3 = Color3.fromRGB(255,255,255)
     button.TextSize = 13
     button.Font = Enum.Font.GothamSemibold
     button.AutoButtonColor = true
     button.Active = true
+    button.ZIndex = 10
     button.Parent = parent
 
     local corner = Instance.new("UICorner")
@@ -3382,85 +3399,55 @@ local function makeModeButton(parent, text, callback, width)
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
-    stroke.Transparency = 0.45
-    stroke.Color = Color3.fromRGB(190, 220, 255)
+    stroke.Transparency = 0.35
+    stroke.Color = Color3.fromRGB(210,230,255)
     stroke.Parent = button
 
     button.MouseButton1Click:Connect(function()
-        pcall(callback)
+        local ok, err = pcall(callback)
+        if not ok then warn("[Johnny Compact] button error: " .. tostring(err)) end
     end)
-
     return button
 end
 
-local function setCompactPaceFormat(formatName, paceLabel, modeName)
-    if compactPaceFormats[formatName] then
-        compactModePaceFormat = formatName
-    end
-
-    if modeName == "Fast Rebirth" and paceLabel then
-        local h = averageTable(paceHistoryHour)
-        local d = averageTable(paceHistoryDay)
-        local w = averageTable(paceHistoryWeek)
-
-        paceLabel.Text = string.format(
-            compactPaceFormats[compactModePaceFormat].reb,
-            formatRebirthNumber(h),
-            formatRebirthNumber(d),
-            formatRebirthNumber(w)
-        )
-    end
-end
-
 local function getFarmPaceNumbers()
-    local h, d, w = "0", "0", "0"
-
-    local ok, textValue = pcall(function()
-        return projectedStrengthLabel.Text
-    end)
-
-    if ok and type(textValue) == "string" then
-        local a, b, c = textValue:match(
-            "Strength Pace:%s*([^/]+)%/Hour%s*|%s*([^/]+)%/Day%s*|%s*([^/]+)%/Week"
-        )
-
-        if a then h = a:gsub("%s+", "") end
-        if b then d = b:gsub("%s+", "") end
-        if c then w = c:gsub("%s+", "") end
+    local h,d,w = "0","0","0"
+    local ok, value = pcall(function() return projectedStrengthLabel.Text end)
+    if ok and type(value) == "string" then
+        local a,b,c = value:match("Strength Pace:%s*([^/]+)%/Hour%s*|%s*([^/]+)%/Day%s*|%s*([^/]+)%/Week")
+        if a then h=a:gsub("%s+","") end
+        if b then d=b:gsub("%s+","") end
+        if c then w=c:gsub("%s+","") end
     end
-
-    return h, d, w
+    return h,d,w
 end
 
 local function openCompactMode(modeName)
-    -- Remove only a previous compact overlay. The main Elerium UI and the
-    -- running Lua script are intentionally left alive.
+    -- Build the replacement first, then remove the old Elerium UI.
     destroyCompactMode()
 
-    local guiRoot = getJohnnyGuiRoot()
-
+    local root = getJohnnyGuiRoot()
     local gui = Instance.new("ScreenGui")
     gui.Name = "JohnnyCompactMode"
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.DisplayOrder = 999999
+    gui.DisplayOrder = 1000000
     gui.Enabled = true
-    gui.Parent = guiRoot
+    gui.Parent = root
     compactModeGui = gui
-
-    local frameHeight = modeName == "Fast Farm" and 330 or 290
 
     local frame = Instance.new("Frame")
     frame.Name = "ModePanel"
-    frame.Size = UDim2.new(0, 380, 0, frameHeight)
-    frame.Position = UDim2.new(0, 25, 0, 120)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 35, 60)
-    frame.BackgroundTransparency = 0.16
+    frame.Size = UDim2.fromOffset(390, modeName == "Fast Farm" and 350 or 310)
+    frame.Position = UDim2.fromOffset(25, 100)
+    frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
+    frame.BackgroundTransparency = 0.10
     frame.BorderSizePixel = 0
+    frame.ClipsDescendants = false
     frame.Active = true
     frame.Draggable = true
-    frame.Visible = true
+    frame.ZIndex = 2
     frame.Parent = gui
 
     local corner = Instance.new("UICorner")
@@ -3469,288 +3456,171 @@ local function openCompactMode(modeName)
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 2
-    stroke.Transparency = 0.08
-    stroke.Color = Color3.fromRGB(150, 205, 255)
+    stroke.Color = Color3.fromRGB(150,210,255)
+    stroke.Transparency = 0.05
     stroke.Parent = frame
 
-    -- Colorful translucent background requested for the mode panel.
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(125, 45, 190)),
-        ColorSequenceKeypoint.new(0.30, Color3.fromRGB(50, 95, 205)),
-        ColorSequenceKeypoint.new(0.65, Color3.fromRGB(25, 175, 190)),
-        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(40, 210, 125))
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(155,45,210)),
+        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(55,90,220)),
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(20,180,190)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(45,220,125))
     })
     gradient.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0.00, 0.22),
-        NumberSequenceKeypoint.new(0.50, 0.34),
-        NumberSequenceKeypoint.new(1.00, 0.48)
+        NumberSequenceKeypoint.new(0,0.05),
+        NumberSequenceKeypoint.new(0.5,0.16),
+        NumberSequenceKeypoint.new(1,0.25)
     })
     gradient.Rotation = 25
     gradient.Parent = frame
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -70, 0, 34)
-    title.Position = UDim2.new(0, 12, 0, 8)
+    title.Size = UDim2.new(1,-58,0,34)
+    title.Position = UDim2.fromOffset(12,7)
     title.BackgroundTransparency = 1
     title.Text = "JOHNNY | " .. string.upper(modeName) .. " MODE"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextColor3 = Color3.new(1,1,1)
     title.TextSize = 17
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 10
     title.Parent = frame
 
-    local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 32, 0, 30)
-    closeButton.Position = UDim2.new(1, -42, 0, 8)
-    closeButton.BackgroundColor3 = Color3.fromRGB(170, 55, 75)
-    closeButton.BackgroundTransparency = 0.10
-    closeButton.BorderSizePixel = 0
-    closeButton.Text = "X"
-    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    closeButton.TextSize = 15
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.Parent = frame
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 7)
-    closeCorner.Parent = closeButton
-
-    closeButton.MouseButton1Click:Connect(function()
-        destroyCompactMode()
-    end)
+    local close = Instance.new("TextButton")
+    close.Size = UDim2.fromOffset(32,30)
+    close.Position = UDim2.new(1,-42,0,7)
+    close.BackgroundColor3 = Color3.fromRGB(190,55,80)
+    close.BackgroundTransparency = 0.05
+    close.BorderSizePixel = 0
+    close.Text = "X"
+    close.TextColor3 = Color3.new(1,1,1)
+    close.TextSize = 15
+    close.Font = Enum.Font.GothamBold
+    close.ZIndex = 10
+    close.Parent = frame
+    Instance.new("UICorner", close).CornerRadius = UDim.new(0,7)
+    close.MouseButton1Click:Connect(destroyCompactMode)
 
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1, -24, 1, -52)
-    content.Position = UDim2.new(0, 12, 0, 48)
+    content.Size = UDim2.new(1,-24,1,-52)
+    content.Position = UDim2.fromOffset(12,48)
     content.BackgroundTransparency = 1
+    content.ZIndex = 5
     content.Parent = frame
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 7)
+    layout.Padding = UDim.new(0,7)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = content
 
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1, 0, 0, 25)
+    status.Size = UDim2.new(1,0,0,26)
     status.BackgroundTransparency = 1
-    status.TextColor3 = Color3.fromRGB(240, 250, 255)
     status.TextSize = 13
-    status.Font = Enum.Font.Gotham
+    status.Font = Enum.Font.GothamBold
+    status.ZIndex = 10
     status.Parent = content
 
-    local paceLabel = Instance.new("TextLabel")
-    paceLabel.Size = UDim2.new(1, 0, 0, 36)
-    paceLabel.BackgroundTransparency = 1
-    paceLabel.TextColor3 = Color3.fromRGB(255, 240, 135)
-    paceLabel.TextSize = 13
-    paceLabel.Font = Enum.Font.GothamSemibold
-    paceLabel.TextWrapped = true
-    paceLabel.Parent = content
+    local pace = Instance.new("TextLabel")
+    pace.Size = UDim2.new(1,0,0,34)
+    pace.BackgroundTransparency = 1
+    pace.TextColor3 = Color3.fromRGB(255,245,130)
+    pace.TextSize = 13
+    pace.Font = Enum.Font.GothamSemibold
+    pace.TextWrapped = true
+    pace.ZIndex = 10
+    pace.Parent = content
 
-    local statsLabel = Instance.new("TextLabel")
-    statsLabel.Size = UDim2.new(1, 0, 0, 24)
-    statsLabel.BackgroundTransparency = 1
-    statsLabel.TextColor3 = Color3.fromRGB(225, 240, 255)
-    statsLabel.TextSize = 12
-    statsLabel.Font = Enum.Font.Gotham
-    statsLabel.TextWrapped = true
-    statsLabel.Parent = content
+    local stats = Instance.new("TextLabel")
+    stats.Size = UDim2.new(1,0,0,24)
+    stats.BackgroundTransparency = 1
+    stats.TextColor3 = Color3.fromRGB(235,245,255)
+    stats.TextSize = 12
+    stats.Font = Enum.Font.Gotham
+    stats.ZIndex = 10
+    stats.Parent = content
 
-    local function refreshRebMode()
+    local function refreshFarm()
+        local ping = getPing()
+        local running = fastRepRunning
+        status.Text = string.format("Fast Farm: %s | %dms | PA: %s", running and "ON" or "OFF", math.floor(ping+0.5), pingAdjusterEnabled and "ON" or "OFF")
+        status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
+        local h,d,w = getFarmPaceNumbers()
+        pace.Text = string.format(compactPaceFormats[compactModePaceFormat].farm,h,d,w)
+        stats.Text = string.format("Strength: %s | Durability: %s",formatStatNumber(strengthStat.Value),formatStatNumber(durabilityStat.Value))
+    end
+
+    local function refreshReb()
         local running = isFastRebirthRunning
         status.Text = running and "Fast Rebirth: ON" or "Fast Rebirth: OFF"
-        status.TextColor3 = running
-            and Color3.fromRGB(100, 255, 145)
-            or Color3.fromRGB(255, 120, 130)
-
-        local h = averageTable(paceHistoryHour)
-        local d = averageTable(paceHistoryDay)
-        local w = averageTable(paceHistoryWeek)
-
-        paceLabel.Text = string.format(
-            compactPaceFormats[compactModePaceFormat].reb,
-            formatRebirthNumber(h),
-            formatRebirthNumber(d),
-            formatRebirthNumber(w)
-        )
-
-        statsLabel.Text = string.format(
-            "Rebirths: %s | Gained: %s",
-            formatRebirthNumber(rebirthsStat.Value),
-            formatRebirthNumber(rebirthsStat.Value - initialRebirths)
-        )
+        status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
+        pace.Text = string.format(compactPaceFormats[compactModePaceFormat].reb,formatRebirthNumber(averageTable(paceHistoryHour)),formatRebirthNumber(averageTable(paceHistoryDay)),formatRebirthNumber(averageTable(paceHistoryWeek)))
+        stats.Text = string.format("Rebirths: %s",formatRebirthNumber(rebirthsStat.Value))
     end
 
-    local function refreshFarmMode()
-        local running = fastRepRunning
-        local ping = getPing()
+    if modeName == "Fast Farm" then
+        makeModeButton(content,"FAST FARM: ON / OFF",function()
+            fastRepRunning = not fastRepRunning
+            if fastRepRunning then task.spawn(fastRepLoop) end
+            refreshFarm()
+        end,220)
 
-        status.Text = string.format(
-            "Fast Farm: %s | Ping: %dms | Ping Adjuster: %s",
-            running and "ON" or "OFF",
-            math.floor(ping + 0.5),
-            pingAdjusterEnabled and "ON" or "OFF"
-        )
-        status.TextColor3 = running
-            and Color3.fromRGB(100, 255, 145)
-            or Color3.fromRGB(255, 120, 130)
-
-        local h, d, w = getFarmPaceNumbers()
-
-        paceLabel.Text = string.format(
-            compactPaceFormats[compactModePaceFormat].farm,
-            h, d, w
-        )
-
-        statsLabel.Text = string.format(
-            "Strength: %s | Durability: %s",
-            formatStatNumber(strengthStat.Value),
-            formatStatNumber(durabilityStat.Value)
-        )
-    end
-
-    if modeName == "Fast Rebirth" then
-        makeModeButton(content, "FAST REBIRTH  ON / OFF", function()
-            if isFastRebirthRunning then
-                isFastRebirthRunning = false
-                fastRebirthTotalElapsed += math.max(0, tick() - fastRebirthStartTime)
-            else
-                isFastRebirthRunning = true
-                fastRebirthStartTime = tick()
-                task.spawn(fastRebirthLoop)
-            end
-            refreshRebMode()
-        end, 210)
-
-        local paceRow = Instance.new("Frame")
-        paceRow.Size = UDim2.new(1, 0, 0, 32)
-        paceRow.BackgroundTransparency = 1
-        paceRow.Parent = content
-
-        local rowLayout = Instance.new("UIListLayout")
-        rowLayout.FillDirection = Enum.FillDirection.Horizontal
-        rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        rowLayout.Padding = UDim.new(0, 4)
-        rowLayout.Parent = paceRow
-
-        for _, formatName in ipairs({"Full", "Short", "Compact", "Mini"}) do
-            makeModeButton(paceRow, formatName, function()
-                setCompactPaceFormat(formatName, paceLabel, modeName)
-                refreshRebMode()
-            end, 72)
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
+        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
+        for _,name in ipairs({"Full","Short","Compact","Mini"}) do
+            makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,75)
         end
 
-        makeModeButton(content, "Industrial Gym Super Squat", function()
-            local root = getRootPart()
-            if root then
-                root.CFrame = CFrame.new(-5488, 61, 4641)
-                task.wait(0.2)
-                pressE()
-            end
-        end, 230)
+        local pingRow=Instance.new("Frame")
+        pingRow.Size=UDim2.new(1,0,0,32); pingRow.BackgroundTransparency=1; pingRow.Parent=content
+        local pl=Instance.new("UIListLayout",pingRow); pl.FillDirection=Enum.FillDirection.Horizontal; pl.HorizontalAlignment=Enum.HorizontalAlignment.Center; pl.Padding=UDim.new(0,4)
+        for _,x in ipairs({{"250/200",250,200},{"300/250",300,250},{"400/300",400,300},{"OFF",nil,nil}}) do
+            makeModeButton(pingRow,x[1],function()
+                if x[2] then pausePing=x[2]; resumePing=x[3]; pingAdjusterEnabled=true else pingAdjusterEnabled=false; pingPaused=false end
+                refreshFarm()
+            end,82)
+        end
 
-        task.spawn(function()
-            while compactModeGui == gui and gui.Parent do
-                refreshRebMode()
-                task.wait(0.5)
-            end
-        end)
+        makeModeButton(content,"Industrial Gym Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,190)
+        makeModeButton(content,"Industrial Gym Super Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,220)
 
-        refreshRebMode()
+        task.spawn(function() while compactModeGui==gui and gui.Parent do refreshFarm(); task.wait(.5) end end)
+        refreshFarm()
     else
-        makeModeButton(content, "FAST FARM  ON / OFF", function()
-            if fastRepRunning then
-                fastRepRunning = false
+        makeModeButton(content,"FAST REBIRTH: ON / OFF",function()
+            isFastRebirthRunning = not isFastRebirthRunning
+            if isFastRebirthRunning then
+                fastRebirthStartTime=tick()
+                task.spawn(fastRebirthLoop)
             else
-                fastRepRunning = true
-                task.spawn(fastRepLoop)
+                fastRebirthTotalElapsed += math.max(0,tick()-fastRebirthStartTime)
             end
-            refreshFarmMode()
-        end, 210)
+            refreshReb()
+        end,220)
 
-        local paceRow = Instance.new("Frame")
-        paceRow.Size = UDim2.new(1, 0, 0, 32)
-        paceRow.BackgroundTransparency = 1
-        paceRow.Parent = content
-
-        local rowLayout = Instance.new("UIListLayout")
-        rowLayout.FillDirection = Enum.FillDirection.Horizontal
-        rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        rowLayout.Padding = UDim.new(0, 4)
-        rowLayout.Parent = paceRow
-
-        for _, formatName in ipairs({"Full", "Short", "Compact", "Mini"}) do
-            makeModeButton(paceRow, formatName, function()
-                compactModePaceFormat = formatName
-                refreshFarmMode()
-            end, 72)
-        end
-
-        local pingRow = Instance.new("Frame")
-        pingRow.Size = UDim2.new(1, 0, 0, 32)
-        pingRow.BackgroundTransparency = 1
-        pingRow.Parent = content
-
-        local pingLayout = Instance.new("UIListLayout")
-        pingLayout.FillDirection = Enum.FillDirection.Horizontal
-        pingLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        pingLayout.Padding = UDim.new(0, 4)
-        pingLayout.Parent = pingRow
-
-        local pingPresets = {
-            {"250/200", 250, 200},
-            {"300/250", 300, 250},
-            {"400/300", 400, 300},
-            {"Ping OFF", nil, nil}
-        }
-
-        for _, preset in ipairs(pingPresets) do
-            makeModeButton(pingRow, preset[1], function()
-                if preset[2] then
-                    pausePing = preset[2]
-                    resumePing = preset[3]
-                    pingAdjusterEnabled = true
-                else
-                    pingAdjusterEnabled = false
-                    pingPaused = false
-                end
-                refreshFarmMode()
-            end, 78)
-        end
-
-        makeModeButton(content, "Industrial Gym Squat", function()
-            local root = getRootPart()
-            if root then
-                root.CFrame = CFrame.new(-5218, 61, 5412)
-                task.wait(0.2)
-                pressE()
-            end
-        end, 200)
-
-        makeModeButton(content, "Industrial Gym Super Squat", function()
-            local root = getRootPart()
-            if root then
-                root.CFrame = CFrame.new(-5488, 61, 4641)
-                task.wait(0.2)
-                pressE()
-            end
-        end, 230)
-
-        task.spawn(function()
-            while compactModeGui == gui and gui.Parent do
-                refreshFarmMode()
-                task.wait(0.5)
-            end
-        end)
-
-        refreshFarmMode()
+        local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
+        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
+        for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,75) end
+        makeModeButton(content,"Industrial Gym Super Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,220)
+        task.spawn(function() while compactModeGui==gui and gui.Parent do refreshReb(); task.wait(.5) end end)
+        refreshReb()
     end
+
+    -- This is the important part: replace the MAIN UI after the compact UI
+    -- has been successfully parented, without destroying the Lua script.
+    task.defer(function()
+        if compactModeGui == gui and gui.Parent then
+            destroyMainUiForCompactMode()
+        end
+    end)
 end
 
 --========================================================--
 -- INFO TAB
+
 --========================================================--
 
 
