@@ -862,40 +862,93 @@ local pingAdjusterSwitch =
         end
     )
 
-FarmingTab:AddLabel("Ping Presets (compact mode also has these):").TextSize = 15
+local pingAdjusterSwitch =
+    FarmingTab:AddSwitch(
+        "Ping Adjuster",
+        function(state)
 
-FarmingTab:AddButton("Ping 250 / 200", function()
-    pausePing = 250
-    resumePing = 200
-    pingAdjusterEnabled = true
-    pingPaused = false
-    updatePingStatus("250/200 enabled")
-end)
+            pingAdjusterEnabled =
+                state
 
-FarmingTab:AddButton("Ping 300 / 250", function()
-    pausePing = 300
-    resumePing = 250
-    pingAdjusterEnabled = true
-    pingPaused = false
-    updatePingStatus("300/250 enabled")
-end)
+            if not state then
 
-FarmingTab:AddButton("Ping 400 / 300", function()
-    pausePing = 400
-    resumePing = 300
-    pingAdjusterEnabled = true
-    pingPaused = false
-    updatePingStatus("400/300 enabled")
-end)
+                pingPaused = false
 
-FarmingTab:AddButton("Ping Adjuster OFF", function()
-    pingAdjusterEnabled = false
-    pingPaused = false
-    updatePingStatus("Disabled")
-end)
+                updatePingStatus(
+                    "Disabled"
+                )
+            end
+        end
+    )
 
--- The compact mode controls pingAdjusterEnabled directly; do not call Set() here.
--- Some Elerium builds return nil from AddSwitch, which caused the old nil error.
+FarmingTab:AddTextBox(
+    "Pause At Ping (ms)",
+    function(value)
+
+        local n =
+            tonumber(value)
+
+        if n and n >= 1 then
+
+            pausePing =
+                math.floor(n)
+
+            if resumePing >= pausePing then
+
+                resumePing =
+                    math.max(
+                        0,
+                        pausePing - 25
+                    )
+            end
+        end
+    end,
+    {
+        placeholder = "250"
+    }
+)
+
+FarmingTab:AddTextBox(
+    "Resume Below Ping (ms)",
+    function(value)
+
+        local n =
+            tonumber(value)
+
+        if n and n >= 0 then
+
+            resumePing =
+                math.min(
+                    math.floor(n),
+                    math.max(
+                        0,
+                        pausePing - 1
+                    )
+                )
+        end
+    end,
+    {
+        placeholder = "200"
+    }
+)
+
+FarmingTab:AddTextBox(
+    "Pause Duration (seconds)",
+    function(value)
+
+        local n =
+            tonumber(value)
+
+        if n and n >= 0 then
+            pauseDuration = n
+        end
+    end,
+    {
+        placeholder = "1"
+    }
+)
+
+-- Keep the original Fast Farm behavior: Ping Adjuster starts enabled.
 pingAdjusterEnabled = true
 
 --========================================================--
@@ -3460,6 +3513,8 @@ openCompactMode = function(modeName)
     open.BackgroundTransparency = 0.08
     open.BorderSizePixel = 0
     open.Visible = false
+    open.Active = true
+    open.Draggable = true
     open.ZIndex = 100
     open.Parent = gui
     compactOpenButton = open
@@ -3626,16 +3681,6 @@ openCompactMode = function(modeName)
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,3)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do
             makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,61)
-        end
-
-        local pingRow=Instance.new("Frame")
-        pingRow.Size=UDim2.new(1,0,0,23); pingRow.BackgroundTransparency=1; pingRow.Parent=content
-        local pl=Instance.new("UIListLayout",pingRow); pl.FillDirection=Enum.FillDirection.Horizontal; pl.HorizontalAlignment=Enum.HorizontalAlignment.Center; pl.Padding=UDim.new(0,3)
-        for _,x in ipairs({{"250/200",250,200},{"300/250",300,250},{"400/300",400,300},{"OFF",nil,nil}}) do
-            makeModeButton(pingRow,x[1],function()
-                if x[2] then pausePing=x[2]; resumePing=x[3]; pingAdjusterEnabled=true else pingAdjusterEnabled=false; pingPaused=false end
-                refreshFarm()
-            end,64)
         end
 
         makeModeButton(content,"REGULAR SQUAT",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,135)
