@@ -194,19 +194,6 @@ local openCompactMode
 local FarmingTab =
     window:AddTab("Fast Farm")
 
-FarmingTab:AddButton(
-    "Fast Farm Mode",
-    function()
-        task.defer(function()
-            if type(openCompactMode) == "function" then
-                openCompactMode("Fast Farm")
-            else
-                warn("[Johnny] Fast Farm Mode: compact mode is not initialized")
-            end
-        end)
-    end
-)
-
 --========================================================--
 -- FARMING UI
 --========================================================--
@@ -875,69 +862,37 @@ local pingAdjusterSwitch =
         end
     )
 
-FarmingTab:AddTextBox(
-    "Pause At Ping (ms)",
-    function(value)
+FarmingTab:AddLabel("Ping Presets (compact mode also has these):").TextSize = 15
 
-        local n = tonumber(value)
+FarmingTab:AddButton("Ping 250 / 200", function()
+    pausePing = 250
+    resumePing = 200
+    pingAdjusterEnabled = true
+    pingPaused = false
+    updatePingStatus("250/200 enabled")
+end)
 
-        if type(n) == "number" and n == n and n >= 1 then
+FarmingTab:AddButton("Ping 300 / 250", function()
+    pausePing = 300
+    resumePing = 250
+    pingAdjusterEnabled = true
+    pingPaused = false
+    updatePingStatus("300/250 enabled")
+end)
 
-            pausePing =
-                math.floor(n)
+FarmingTab:AddButton("Ping 400 / 300", function()
+    pausePing = 400
+    resumePing = 300
+    pingAdjusterEnabled = true
+    pingPaused = false
+    updatePingStatus("400/300 enabled")
+end)
 
-            if resumePing >= pausePing then
-
-                resumePing =
-                    math.max(
-                        0,
-                        pausePing - 25
-                    )
-            end
-        end
-    end,
-    {
-        placeholder = "250"
-    }
-)
-
-FarmingTab:AddTextBox(
-    "Resume Below Ping (ms)",
-    function(value)
-
-        local n = tonumber(value)
-
-        if type(n) == "number" and n == n and n >= 0 then
-
-            resumePing =
-                math.min(
-                    math.floor(n),
-                    math.max(
-                        0,
-                        pausePing - 1
-                    )
-                )
-        end
-    end,
-    {
-        placeholder = "200"
-    }
-)
-
-FarmingTab:AddTextBox(
-    "Pause Duration (seconds)",
-    function(value)
-
-        local n = tonumber(value)
-
-        if type(n) == "number" and n == n and n >= 0 then
-            pauseDuration = n
-        end
-    end,
-    {
-        placeholder = "1"
-    }
-)
+FarmingTab:AddButton("Ping Adjuster OFF", function()
+    pingAdjusterEnabled = false
+    pingPaused = false
+    updatePingStatus("Disabled")
+end)
 
 -- The compact mode controls pingAdjusterEnabled directly; do not call Set() here.
 -- Some Elerium builds return nil from AddSwitch, which caused the old nil error.
@@ -1831,19 +1786,6 @@ local fastRebirthLoop
 local isFastRebirthRunning
 local fastRebirthStartTime
 local fastRebirthTotalElapsed
-
-FastRebTab:AddButton(
-    "Fast Reb Mode",
-    function()
-        task.defer(function()
-            if type(openCompactMode) == "function" then
-                openCompactMode("Fast Rebirth")
-            else
-                warn("[Johnny] Fast Reb Mode: compact mode is not initialized")
-            end
-        end)
-    end
-)
 
 --========================================================--
 -- FAST REBIRTH UI
@@ -3450,10 +3392,10 @@ openCompactMode = function(modeName)
 
     local frame = Instance.new("Frame")
     frame.Name = "ModePanel"
-    frame.Size = UDim2.fromOffset(390, modeName == "Fast Farm" and 300 or 260)
+    frame.Size = UDim2.fromOffset(410, modeName == "Fast Farm" and 370 or 325)
     frame.Position = UDim2.fromOffset(25, 100)
     frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
-    frame.BackgroundTransparency = 0.10
+    frame.BackgroundTransparency = 0.18
     frame.BorderSizePixel = 0
     frame.ClipsDescendants = false
     frame.Active = true
@@ -3571,20 +3513,31 @@ openCompactMode = function(modeName)
         stats.Text = string.format("Rebirths: %s",formatRebirthNumber(rebirthsStat.Value))
     end
 
-    local startButton = makeModeButton(content, modeName == "Fast Farm" and "START FAST FARM" or "START FAST REBIRTH", function()
-        if modeName == "Fast Farm" then
-            if not fastRepRunning then
-                fastRepRunning = true
-                task.spawn(fastRepLoop)
-            end
+    local startButton
+
+if modeName == "Fast Farm" then
+    startButton = makeModeButton(content, "FAST FARM: OFF", function()
+        fastRepRunning = not fastRepRunning
+        if fastRepRunning then
+            startButton.Text = "FAST FARM: ON"
+            task.spawn(fastRepLoop)
         else
-            if not isFastRebirthRunning then
-                isFastRebirthRunning = true
-                fastRebirthStartTime = tick()
-                task.spawn(fastRebirthLoop)
-            end
+            startButton.Text = "FAST FARM: OFF"
         end
     end, 235)
+else
+    startButton = makeModeButton(content, "FAST REBIRTH: OFF", function()
+        isFastRebirthRunning = not isFastRebirthRunning
+        if isFastRebirthRunning then
+            fastRebirthStartTime = tick()
+            startButton.Text = "FAST REBIRTH: ON"
+            task.spawn(fastRebirthLoop)
+        else
+            fastRebirthTotalElapsed = fastRebirthTotalElapsed + (tick() - fastRebirthStartTime)
+            startButton.Text = "FAST REBIRTH: OFF"
+        end
+    end, 235)
+end
 
     local nightButton = makeModeButton(content, "Night Mode: OFF", function()
         compactNightMode = not compactNightMode
@@ -3596,7 +3549,7 @@ openCompactMode = function(modeName)
             stroke.Color = Color3.fromRGB(90, 105, 150)
         else
             frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
-            frame.BackgroundTransparency = 0.10
+            frame.BackgroundTransparency = 0.18
             gradient.Enabled = true
             stroke.Color = Color3.fromRGB(150,210,255)
         end
@@ -3638,6 +3591,16 @@ openCompactMode = function(modeName)
     -- immediately. The selected mode remains OFF until its START button is pressed.
     destroyMainUiForCompactMode()
 end
+
+-- The Elerium main UI buttons are registered only after the custom UI
+-- function exists. This removes the old forward-reference/timing problem.
+FarmingTab:AddButton("Fast Farm Mode", function()
+    openCompactMode("Fast Farm")
+end)
+
+FastRebTab:AddButton("Fast Reb Mode", function()
+    openCompactMode("Fast Rebirth")
+end)
 
 --========================================================--
 -- INFO TAB
