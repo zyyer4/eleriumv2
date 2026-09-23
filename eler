@@ -197,9 +197,13 @@ local FarmingTab =
 FarmingTab:AddButton(
     "Fast Farm Mode",
     function()
-        if openCompactMode then
-            openCompactMode("Fast Farm")
-        end
+        task.defer(function()
+            if type(openCompactMode) == "function" then
+                openCompactMode("Fast Farm")
+            else
+                warn("[Johnny] Fast Farm Mode: compact mode is not initialized")
+            end
+        end)
     end
 )
 
@@ -875,10 +879,9 @@ FarmingTab:AddTextBox(
     "Pause At Ping (ms)",
     function(value)
 
-        local n =
-            tonumber(value)
+        local n = tonumber(value)
 
-        if n and n >= 1 then
+        if type(n) == "number" and n == n and n >= 1 then
 
             pausePing =
                 math.floor(n)
@@ -902,10 +905,9 @@ FarmingTab:AddTextBox(
     "Resume Below Ping (ms)",
     function(value)
 
-        local n =
-            tonumber(value)
+        local n = tonumber(value)
 
-        if n and n >= 0 then
+        if type(n) == "number" and n == n and n >= 0 then
 
             resumePing =
                 math.min(
@@ -926,10 +928,9 @@ FarmingTab:AddTextBox(
     "Pause Duration (seconds)",
     function(value)
 
-        local n =
-            tonumber(value)
+        local n = tonumber(value)
 
-        if n and n >= 0 then
+        if type(n) == "number" and n == n and n >= 0 then
             pauseDuration = n
         end
     end,
@@ -938,8 +939,9 @@ FarmingTab:AddTextBox(
     }
 )
 
--- Enable only after all ping functions exist.
-pingAdjusterSwitch:Set(true)
+-- The compact mode controls pingAdjusterEnabled directly; do not call Set() here.
+-- Some Elerium builds return nil from AddSwitch, which caused the old nil error.
+pingAdjusterEnabled = true
 
 --========================================================--
 -- FAST REP LOOP
@@ -1833,9 +1835,13 @@ local fastRebirthTotalElapsed
 FastRebTab:AddButton(
     "Fast Reb Mode",
     function()
-        if openCompactMode then
-            openCompactMode("Fast Rebirth")
-        end
+        task.defer(function()
+            if type(openCompactMode) == "function" then
+                openCompactMode("Fast Rebirth")
+            else
+                warn("[Johnny] Fast Reb Mode: compact mode is not initialized")
+            end
+        end)
     end
 )
 
@@ -3414,7 +3420,16 @@ local function getFarmPaceNumbers()
     return h,d,w
 end
 
-local function openCompactMode(modeName)
+openCompactMode = function(modeName)
+    -- Mode switching never starts automation.
+    -- Each compact mode always opens with its automation OFF.
+    if modeName == "Fast Farm" then
+        fastRepRunning = false
+    elseif modeName == "Fast Rebirth" then
+        isFastRebirthRunning = false
+    end
+    compactNightMode = false
+
     -- Build the replacement first, then remove the old Elerium UI.
     destroyCompactMode()
 
@@ -3426,7 +3441,11 @@ local function openCompactMode(modeName)
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.DisplayOrder = 1000000
     gui.Enabled = true
-    gui.Parent = root
+    local parented = pcall(function() gui.Parent = root end)
+    if not parented or not gui.Parent then
+        local playerGui = Player:FindFirstChildOfClass("PlayerGui") or Player:WaitForChild("PlayerGui")
+        gui.Parent = playerGui
+    end
     compactModeGui = gui
 
     local frame = Instance.new("Frame")
