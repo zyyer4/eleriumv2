@@ -3193,8 +3193,9 @@ local compactModeGui = nil
 local compactModePaceFormat = "Full"
 local compactNightMode = false
 local compactRainbowToken = 0
-local compactSavedClockTime = nil
 local compactThemeGradients = {}
+local compactThemeButtons = {}
+local compactActiveModeTheme = nil
 
 local rainbowColors = ColorSequence.new({
     ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 70, 150)),
@@ -3211,6 +3212,20 @@ local rainbowTransparency = NumberSequence.new({
     NumberSequenceKeypoint.new(1, 0.10)
 })
 local darkThemeColors = ColorSequence.new(Color3.fromRGB(22, 25, 35), Color3.fromRGB(45, 50, 68))
+local modeThemeColors = {
+    ["Fast Farm"] = {
+        normal = ColorSequence.new(Color3.fromRGB(35, 150, 125), Color3.fromRGB(70, 80, 185)),
+        night = ColorSequence.new(Color3.fromRGB(12, 55, 48), Color3.fromRGB(24, 30, 72)),
+        button = Color3.fromRGB(42, 105, 105),
+        stroke = Color3.fromRGB(90, 220, 190)
+    },
+    ["Fast Rebirth"] = {
+        normal = ColorSequence.new(Color3.fromRGB(95, 65, 190), Color3.fromRGB(45, 125, 205)),
+        night = ColorSequence.new(Color3.fromRGB(35, 20, 70), Color3.fromRGB(18, 42, 78)),
+        button = Color3.fromRGB(72, 65, 125),
+        stroke = Color3.fromRGB(150, 130, 255)
+    }
+}
 
 local compactPaceFormats = {
     Full = { reb = "Pace: %s / Hour | %s / Day | %s / Week", farm = "Strength: %s/H | %s/D | %s/W" },
@@ -3263,14 +3278,7 @@ local function destroyMainUiForCompactMode()
 end
 
 local function destroyCompactMode()
-    -- If compact Night Mode was active, restore the game time before closing.
-    if compactNightMode and compactSavedClockTime ~= nil then
-        pcall(function()
-            Lighting.ClockTime = compactSavedClockTime
-        end)
-    end
     compactNightMode = false
-    compactSavedClockTime = nil
     compactThemeGradients = {}
 
     if compactModeGui then
@@ -3287,35 +3295,30 @@ end
 local function makeModeButton(parent, text, callback, width)
     local button = Instance.new("TextButton")
     button.Name = "ModeButton"
-    button.Size = UDim2.new(0, width or 120, 0, 32)
-    button.BackgroundColor3 = Color3.fromRGB(55, 70, 105)
+    button.Size = UDim2.new(0, width or 112, 0, 27)
+    button.BackgroundColor3 = (compactActiveModeTheme and compactActiveModeTheme.button) or Color3.fromRGB(55, 70, 105)
     button.BackgroundTransparency = 0.08
     button.BorderSizePixel = 0
     button.Text = text
     button.TextColor3 = Color3.fromRGB(255,255,255)
-    button.TextSize = 13
+    button.TextSize = 11
     button.Font = Enum.Font.GothamSemibold
     button.AutoButtonColor = true
     button.Active = true
     button.ZIndex = 10
     button.Parent = parent
+    table.insert(compactThemeButtons, button)
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 7)
+    corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = button
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
-    stroke.Transparency = 0.30
+    stroke.Transparency = 0.35
     stroke.Color = Color3.fromRGB(210,230,255)
     stroke.Parent = button
 
-    local buttonGradient = Instance.new("UIGradient")
-    buttonGradient.Color = rainbowColors
-    buttonGradient.Transparency = rainbowTransparency
-    buttonGradient.Rotation = 25
-    buttonGradient.Parent = button
-    table.insert(compactThemeGradients, buttonGradient)
 
     button.MouseButton1Click:Connect(function()
         local ok, err = pcall(callback)
@@ -3337,6 +3340,7 @@ local function getFarmPaceNumbers()
 end
 
 openCompactMode = function(modeName)
+    compactActiveModeTheme = modeThemeColors[modeName] or modeThemeColors["Fast Farm"]
     -- Mode switching never starts automation.
     -- Each compact mode always opens with its automation OFF.
     if modeName == "Fast Farm" then
@@ -3366,9 +3370,9 @@ openCompactMode = function(modeName)
 
     local frame = Instance.new("Frame")
     frame.Name = "ModePanel"
-    frame.Size = UDim2.fromOffset(410, modeName == "Fast Farm" and 370 or 325)
-    frame.Position = UDim2.fromOffset(25, 100)
-    frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
+    frame.Size = UDim2.fromOffset(350, modeName == "Fast Farm" and 335 or 305)
+    frame.Position = UDim2.fromOffset(25, 90)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 30, 42)
     frame.BackgroundTransparency = 0.18
     frame.BorderSizePixel = 0
     frame.ClipsDescendants = false
@@ -3446,7 +3450,7 @@ openCompactMode = function(modeName)
     content.Parent = frame
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0,7)
+    layout.Padding = UDim.new(0,4)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = content
@@ -3517,7 +3521,7 @@ if modeName == "Fast Farm" then
         else
             startButton.Text = "FAST FARM: OFF"
         end
-    end, 235)
+    end, 205)
 else
     startButton = makeModeButton(content, "FAST REBIRTH: OFF", function()
         isFastRebirthRunning = not isFastRebirthRunning
@@ -3529,54 +3533,67 @@ else
             fastRebirthTotalElapsed = fastRebirthTotalElapsed + (tick() - fastRebirthStartTime)
             startButton.Text = "FAST REBIRTH: OFF"
         end
-    end, 235)
+    end, 205)
 end
 
-    local nightButton = makeModeButton(content, "Night Mode: OFF", function()
-        compactNightMode = not compactNightMode
-        nightButton.Text = compactNightMode and "Night Mode: ON" or "Night Mode: OFF"
+    local theme = modeThemeColors[modeName] or modeThemeColors["Fast Farm"]
 
-        if compactNightMode then
-            -- Save the current in-game time once, then switch the actual game world to night.
-            if compactSavedClockTime == nil then
-                compactSavedClockTime = Lighting.ClockTime
-            end
-            Lighting.ClockTime = 0
-
-            -- Real dark theme: remove the rainbow layer, darken the panel,
-            -- and keep the text/buttons readable.
-            for _, g in ipairs(compactThemeGradients) do
-                if g and g.Parent then
-                    g.Color = darkThemeColors
-                    g.Transparency = NumberSequence.new(0.05)
-                end
-            end
-            frame.BackgroundColor3 = Color3.fromRGB(16, 18, 26)
-            frame.BackgroundTransparency = 0.16
-            stroke.Color = Color3.fromRGB(80, 90, 120)
-            stroke.Transparency = 0.12
-            local anyRunning = (modeName == "Fast Farm" and fastRepRunning) or (modeName == "Fast Rebirth" and isFastRebirthRunning)
-            status.TextColor3 = anyRunning and Color3.fromRGB(110, 255, 155) or Color3.fromRGB(255, 145, 155)
-        else
-            -- Restore the game's previous time as well as the colorful UI theme.
-            if compactSavedClockTime ~= nil then
-                Lighting.ClockTime = compactSavedClockTime
-                compactSavedClockTime = nil
-            end
-
-            -- Restore the colorful translucent rainbow theme.
-            for _, g in ipairs(compactThemeGradients) do
-                if g and g.Parent then
+    local function applyCompactTheme()
+        for _, g in ipairs(compactThemeGradients) do
+            if g and g.Parent then
+                if compactNightMode then
+                    g.Color = theme.night
+                    g.Transparency = NumberSequence.new(0.08)
+                else
                     g.Color = rainbowColors
                     g.Transparency = rainbowTransparency
                 end
             end
-            frame.BackgroundColor3 = Color3.fromRGB(25, 28, 42)
-            frame.BackgroundTransparency = 0.18
-            stroke.Color = Color3.fromRGB(150, 210, 255)
-            stroke.Transparency = 0.05
         end
-    end, 235)
+        for _, b in ipairs(compactThemeButtons) do
+            if b and b.Parent then
+                if compactNightMode then
+                    b.BackgroundColor3 = theme.button:Lerp(Color3.fromRGB(8, 10, 16), 0.45)
+                    b.BackgroundTransparency = 0.18
+                else
+                    b.BackgroundColor3 = theme.button
+                    b.BackgroundTransparency = 0.10
+                end
+            end
+        end
+        if compactNightMode then
+            frame.BackgroundColor3 = Color3.fromRGB(13, 16, 23)
+            frame.BackgroundTransparency = 0.10
+            stroke.Color = theme.stroke
+            stroke.Transparency = 0.18
+        else
+            frame.BackgroundColor3 = Color3.fromRGB(25, 28, 42)
+            frame.BackgroundTransparency = 0.22
+            stroke.Color = Color3.fromRGB(180, 200, 255)
+            stroke.Transparency = 0.12
+        end
+    end
+
+    local nightButton = makeModeButton(content, "NIGHT: OFF", function()
+        compactNightMode = not compactNightMode
+        nightButton.Text = compactNightMode and "NIGHT: ON" or "NIGHT: OFF"
+        applyCompactTheme()
+    end, 110)
+
+    -- Time controls are UI-only controls for the game's Lighting clock.
+    local timeRow = Instance.new("Frame")
+    timeRow.Size = UDim2.new(1,0,0,27)
+    timeRow.BackgroundTransparency = 1
+    timeRow.Parent = content
+    local tl = Instance.new("UIListLayout")
+    tl.FillDirection = Enum.FillDirection.Horizontal
+    tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    tl.Padding = UDim.new(0,4)
+    tl.Parent = timeRow
+    makeModeButton(timeRow, "NIGHT", function() Lighting.ClockTime = 0 end, 75)
+    makeModeButton(timeRow, "DAY", function() Lighting.ClockTime = 12 end, 75)
+    makeModeButton(timeRow, "MIDNIGHT", function() Lighting.ClockTime = 6 end, 85)
+
 
     if modeName == "Fast Farm" then
 
@@ -3584,7 +3601,7 @@ end
         row.Size = UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do
-            makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,75)
+            makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,66)
         end
 
         local pingRow=Instance.new("Frame")
@@ -3594,7 +3611,7 @@ end
             makeModeButton(pingRow,x[1],function()
                 if x[2] then pausePing=x[2]; resumePing=x[3]; pingAdjusterEnabled=true else pingAdjusterEnabled=false; pingPaused=false end
                 refreshFarm()
-            end,82)
+            end,68)
         end
 
         makeModeButton(content,"Industrial Gym Regular Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,235)
@@ -3607,7 +3624,7 @@ end
     else
         local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
-        for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,75) end
+        for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,66) end
         makeModeButton(content,"Industrial Gym Super Squat",function()
             local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end
         end,220)
@@ -3617,6 +3634,8 @@ end
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshReb(); task.wait(.5) end end)
         refreshReb()
     end
+
+    applyCompactTheme()
 
     -- Hand off completely to the selected mode: remove the full Elerium UI
     -- immediately. The selected mode remains OFF until its START button is pressed.
