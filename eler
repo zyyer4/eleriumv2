@@ -1783,6 +1783,7 @@ local FastRebTab =
 -- Forward declarations: these are referenced by the mode button callback
 -- before the main Fast Rebirth state/loop is declared below.
 local fastRebirthLoop
+local activateAntiLag
 local isFastRebirthRunning
 local fastRebirthStartTime
 local fastRebirthTotalElapsed
@@ -2352,7 +2353,7 @@ FastRebTab:AddSwitch(
 -- FAST REBIRTH ANTI LAG
 --========================================================--
 
-local function activateAntiLag()
+activateAntiLag = function()
 
     local playerGui =
         Player:WaitForChild("PlayerGui")
@@ -2361,7 +2362,7 @@ local function activateAntiLag()
         playerGui:GetChildren()
     ) do
 
-        if gui:IsA("ScreenGui") then
+        if gui:IsA("ScreenGui") and gui.Name ~= "JohnnyCompactMode" then
             pcall(function()
                 gui:Destroy()
             end)
@@ -3254,6 +3255,8 @@ end
 local compactModeGui = nil
 local compactModePaceFormat = "Full"
 local compactNightMode = false
+local compactRainbowToken = 0
+local compactSavedClockTime = nil
 
 local compactPaceFormats = {
     Full = { reb = "Pace: %s / Hour | %s / Day | %s / Week", farm = "Strength: %s/H | %s/D | %s/W" },
@@ -3306,6 +3309,15 @@ local function destroyMainUiForCompactMode()
 end
 
 local function destroyCompactMode()
+    -- If compact Night Mode was active, restore the game time before closing.
+    if compactNightMode and compactSavedClockTime ~= nil then
+        pcall(function()
+            Lighting.ClockTime = compactSavedClockTime
+        end)
+    end
+    compactNightMode = false
+    compactSavedClockTime = nil
+
     if compactModeGui then
         pcall(function() compactModeGui:Destroy() end)
         compactModeGui = nil
@@ -3415,18 +3427,34 @@ openCompactMode = function(modeName)
 
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(155,45,210)),
-        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(55,90,220)),
-        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(20,180,190)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(45,220,125))
+        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 60, 120)),
+        ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 170, 45)),
+        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(245, 245, 70)),
+        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(60, 235, 125)),
+        ColorSequenceKeypoint.new(0.66, Color3.fromRGB(55, 210, 255)),
+        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(100, 90, 255)),
+        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(235, 60, 255))
     })
     gradient.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0,0.05),
-        NumberSequenceKeypoint.new(0.5,0.16),
-        NumberSequenceKeypoint.new(1,0.25)
+        NumberSequenceKeypoint.new(0, 0.08),
+        NumberSequenceKeypoint.new(0.5, 0.18),
+        NumberSequenceKeypoint.new(1, 0.28)
     })
     gradient.Rotation = 25
     gradient.Parent = frame
+
+    -- Keep the compact panel visibly rainbow-colored while it is in normal mode.
+    -- Night Mode cancels this animation and applies a dark, still-readable theme.
+    compactRainbowToken += 1
+    local rainbowToken = compactRainbowToken
+    task.spawn(function()
+        while compactModeGui == gui and gui.Parent and rainbowToken == compactRainbowToken do
+            if not compactNightMode then
+                gradient.Rotation = (gradient.Rotation + 1) % 360
+            end
+            task.wait(0.035)
+        end
+    end)
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1,-58,0,34)
@@ -3502,7 +3530,13 @@ openCompactMode = function(modeName)
         status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
         local h,d,w = getFarmPaceNumbers()
         pace.Text = string.format(compactPaceFormats[compactModePaceFormat].farm,h,d,w)
-        stats.Text = string.format("Strength: %s | Durability: %s",formatStatNumber(strengthStat.Value),formatStatNumber(durabilityStat.Value))
+        stats.Text = string.format(
+            "Strength: %s | Gained: %s\nDurability: %s | Gained: %s",
+            formatStatNumber(strengthStat.Value),
+            formatStatNumber(strengthStat.Value - initialStrength),
+            formatStatNumber(durabilityStat.Value),
+            formatStatNumber(durabilityStat.Value - initialDurability)
+        )
     end
 
     local function refreshReb()
@@ -3510,7 +3544,11 @@ openCompactMode = function(modeName)
         status.Text = running and "Fast Rebirth: ON" or "Fast Rebirth: OFF"
         status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
         pace.Text = string.format(compactPaceFormats[compactModePaceFormat].reb,formatRebirthNumber(averageTable(paceHistoryHour)),formatRebirthNumber(averageTable(paceHistoryDay)),formatRebirthNumber(averageTable(paceHistoryWeek)))
-        stats.Text = string.format("Rebirths: %s",formatRebirthNumber(rebirthsStat.Value))
+        stats.Text = string.format(
+            "Rebirths: %s | Gained: %s",
+            formatRebirthNumber(rebirthsStat.Value),
+            formatRebirthNumber(rebirthsStat.Value - initialRebirths)
+        )
     end
 
     local startButton
@@ -3542,16 +3580,36 @@ end
     local nightButton = makeModeButton(content, "Night Mode: OFF", function()
         compactNightMode = not compactNightMode
         nightButton.Text = compactNightMode and "Night Mode: ON" or "Night Mode: OFF"
+
         if compactNightMode then
-            frame.BackgroundColor3 = Color3.fromRGB(8, 10, 20)
-            frame.BackgroundTransparency = 0.08
+            -- Save the current in-game time once, then switch the actual game world to night.
+            if compactSavedClockTime == nil then
+                compactSavedClockTime = Lighting.ClockTime
+            end
+            Lighting.ClockTime = 0
+
+            -- Real dark theme: remove the rainbow layer, darken the panel,
+            -- and keep the text/buttons readable.
             gradient.Enabled = false
-            stroke.Color = Color3.fromRGB(90, 105, 150)
+            frame.BackgroundColor3 = Color3.fromRGB(9, 12, 22)
+            frame.BackgroundTransparency = 0.10
+            stroke.Color = Color3.fromRGB(70, 85, 125)
+            stroke.Transparency = 0.15
+            local anyRunning = (modeName == "Fast Farm" and fastRepRunning) or (modeName == "Fast Rebirth" and isFastRebirthRunning)
+            status.TextColor3 = anyRunning and Color3.fromRGB(110, 255, 155) or Color3.fromRGB(255, 145, 155)
         else
+            -- Restore the game's previous time as well as the colorful UI theme.
+            if compactSavedClockTime ~= nil then
+                Lighting.ClockTime = compactSavedClockTime
+                compactSavedClockTime = nil
+            end
+
+            -- Restore the colorful translucent rainbow theme.
+            gradient.Enabled = true
             frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
             frame.BackgroundTransparency = 0.18
-            gradient.Enabled = true
-            stroke.Color = Color3.fromRGB(150,210,255)
+            stroke.Color = Color3.fromRGB(150, 210, 255)
+            stroke.Transparency = 0.05
         end
     end, 235)
 
@@ -3575,6 +3633,11 @@ end
         end
 
         makeModeButton(content,"Industrial Gym Regular Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,235)
+        makeModeButton(content,"ANTI-LAG",function()
+            local ok, err = pcall(activateAntiLag)
+            if not ok then warn("[Johnny Compact] Anti-Lag error: " .. tostring(err)) end
+            refreshFarm()
+        end,235)
 
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshFarm(); task.wait(.5) end end)
         refreshFarm()
@@ -3583,6 +3646,11 @@ end
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,75) end
         makeModeButton(content,"Industrial Gym Super Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,220)
+        makeModeButton(content,"ANTI-LAG",function()
+            local ok, err = pcall(activateAntiLag)
+            if not ok then warn("[Johnny Compact] Anti-Lag error: " .. tostring(err)) end
+            refreshReb()
+        end,220)
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshReb(); task.wait(.5) end end)
         refreshReb()
     end
