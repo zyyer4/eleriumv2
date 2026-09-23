@@ -3196,34 +3196,40 @@ local compactRainbowToken = 0
 local compactThemeGradients = {}
 local compactThemeButtons = {}
 local compactActiveModeTheme = nil
+local compactPanel = nil
+local compactOpenButton = nil
 
+-- The compact panel uses a visible rainbow acrylic-style surface in normal mode.
+-- The colors are deliberately on the PANEL, while buttons stay small and solid.
 local rainbowColors = ColorSequence.new({
-    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 70, 150)),
-    ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 150, 55)),
-    ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 235, 70)),
-    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(65, 235, 125)),
-    ColorSequenceKeypoint.new(0.66, Color3.fromRGB(55, 210, 255)),
-    ColorSequenceKeypoint.new(0.83, Color3.fromRGB(115, 90, 255)),
-    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(240, 65, 255))
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 55, 125)),
+    ColorSequenceKeypoint.new(0.14, Color3.fromRGB(255, 120, 45)),
+    ColorSequenceKeypoint.new(0.28, Color3.fromRGB(255, 225, 55)),
+    ColorSequenceKeypoint.new(0.43, Color3.fromRGB(65, 235, 125)),
+    ColorSequenceKeypoint.new(0.58, Color3.fromRGB(50, 210, 255)),
+    ColorSequenceKeypoint.new(0.73, Color3.fromRGB(85, 105, 255)),
+    ColorSequenceKeypoint.new(0.87, Color3.fromRGB(190, 70, 255)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 55, 150))
 })
+
 local rainbowTransparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.10),
-    NumberSequenceKeypoint.new(0.5, 0.20),
-    NumberSequenceKeypoint.new(1, 0.10)
+    NumberSequenceKeypoint.new(0.00, 0.02),
+    NumberSequenceKeypoint.new(0.50, 0.10),
+    NumberSequenceKeypoint.new(1.00, 0.02)
 })
-local darkThemeColors = ColorSequence.new(Color3.fromRGB(22, 25, 35), Color3.fromRGB(45, 50, 68))
+
 local modeThemeColors = {
     ["Fast Farm"] = {
-        normal = ColorSequence.new(Color3.fromRGB(35, 150, 125), Color3.fromRGB(70, 80, 185)),
-        night = ColorSequence.new(Color3.fromRGB(12, 55, 48), Color3.fromRGB(24, 30, 72)),
-        button = Color3.fromRGB(42, 105, 105),
-        stroke = Color3.fromRGB(90, 220, 190)
+        normal = ColorSequence.new(Color3.fromRGB(40, 220, 175), Color3.fromRGB(70, 105, 235)),
+        night = ColorSequence.new(Color3.fromRGB(8, 48, 42), Color3.fromRGB(16, 28, 62)),
+        button = Color3.fromRGB(35, 125, 112),
+        stroke = Color3.fromRGB(85, 225, 190)
     },
     ["Fast Rebirth"] = {
-        normal = ColorSequence.new(Color3.fromRGB(95, 65, 190), Color3.fromRGB(45, 125, 205)),
-        night = ColorSequence.new(Color3.fromRGB(35, 20, 70), Color3.fromRGB(18, 42, 78)),
-        button = Color3.fromRGB(72, 65, 125),
-        stroke = Color3.fromRGB(150, 130, 255)
+        normal = ColorSequence.new(Color3.fromRGB(150, 75, 240), Color3.fromRGB(50, 150, 235)),
+        night = ColorSequence.new(Color3.fromRGB(38, 18, 70), Color3.fromRGB(18, 35, 68)),
+        button = Color3.fromRGB(82, 68, 145),
+        stroke = Color3.fromRGB(165, 140, 255)
     }
 }
 
@@ -3238,19 +3244,13 @@ local function getJohnnyGuiRoot()
     local root
     if type(gethui) == "function" then
         local ok, result = pcall(gethui)
-        if ok and typeof(result) == "Instance" then
-            root = result
-        end
+        if ok and typeof(result) == "Instance" then root = result end
     end
     if not root then
         local ok, result = pcall(function() return game:GetService("CoreGui") end)
-        if ok and typeof(result) == "Instance" then
-            root = result
-        end
+        if ok and typeof(result) == "Instance" then root = result end
     end
-    if not root then
-        root = Player:WaitForChild("PlayerGui")
-    end
+    if not root then root = Player:WaitForChild("PlayerGui") end
     return root
 end
 
@@ -3258,13 +3258,10 @@ local function findMainJohnnyGui()
     local roots = { getJohnnyGuiRoot() }
     pcall(function() table.insert(roots, game:GetService("CoreGui")) end)
     pcall(function() table.insert(roots, Player:WaitForChild("PlayerGui")) end)
-
     for _, root in ipairs(roots) do
         if root and typeof(root) == "Instance" then
             local found = root:FindFirstChild("imgui", true)
-            if found then
-                return found
-            end
+            if found then return found end
         end
     end
     return nil
@@ -3272,15 +3269,31 @@ end
 
 local function destroyMainUiForCompactMode()
     local imgui = findMainJohnnyGui()
-    if imgui then
-        pcall(function() imgui:Destroy() end)
+    if imgui then pcall(function() imgui:Destroy() end) end
+end
+
+-- Supports common executor local-asset functions. The supplied image should be
+-- placed in the executor's workspace as "johnny_custom_icon.png".
+local function getJohnnyCustomAsset(fileName)
+    local funcs = { getcustomasset, getsynasset }
+    for _, fn in ipairs(funcs) do
+        if type(fn) == "function" then
+            local ok, result = pcall(fn, fileName)
+            if ok and type(result) == "string" and result ~= "" then
+                return result
+            end
+        end
     end
+    return nil
 end
 
 local function destroyCompactMode()
+    compactRainbowToken += 1
     compactNightMode = false
     compactThemeGradients = {}
-
+    compactThemeButtons = {}
+    compactPanel = nil
+    compactOpenButton = nil
     if compactModeGui then
         pcall(function() compactModeGui:Destroy() end)
         compactModeGui = nil
@@ -3295,13 +3308,13 @@ end
 local function makeModeButton(parent, text, callback, width)
     local button = Instance.new("TextButton")
     button.Name = "ModeButton"
-    button.Size = UDim2.new(0, width or 112, 0, 27)
+    button.Size = UDim2.fromOffset(width or 88, 23)
     button.BackgroundColor3 = (compactActiveModeTheme and compactActiveModeTheme.button) or Color3.fromRGB(55, 70, 105)
     button.BackgroundTransparency = 0.08
     button.BorderSizePixel = 0
     button.Text = text
-    button.TextColor3 = Color3.fromRGB(255,255,255)
-    button.TextSize = 11
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 10
     button.Font = Enum.Font.GothamSemibold
     button.AutoButtonColor = true
     button.Active = true
@@ -3310,15 +3323,14 @@ local function makeModeButton(parent, text, callback, width)
     table.insert(compactThemeButtons, button)
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
+    corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = button
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
-    stroke.Transparency = 0.35
-    stroke.Color = Color3.fromRGB(210,230,255)
+    stroke.Transparency = 0.38
+    stroke.Color = Color3.fromRGB(220, 235, 255)
     stroke.Parent = button
-
 
     button.MouseButton1Click:Connect(function()
         local ok, err = pcall(callback)
@@ -3341,16 +3353,14 @@ end
 
 openCompactMode = function(modeName)
     compactActiveModeTheme = modeThemeColors[modeName] or modeThemeColors["Fast Farm"]
-    -- Mode switching never starts automation.
-    -- Each compact mode always opens with its automation OFF.
+
+    -- Never start automation just by entering a mode.
     if modeName == "Fast Farm" then
         fastRepRunning = false
     elseif modeName == "Fast Rebirth" then
         isFastRebirthRunning = false
     end
     compactNightMode = false
-
-    -- Build the replacement first, then remove the old Elerium UI.
     destroyCompactMode()
 
     local root = getJohnnyGuiRoot()
@@ -3363,284 +3373,298 @@ openCompactMode = function(modeName)
     gui.Enabled = true
     local parented = pcall(function() gui.Parent = root end)
     if not parented or not gui.Parent then
-        local playerGui = Player:FindFirstChildOfClass("PlayerGui") or Player:WaitForChild("PlayerGui")
-        gui.Parent = playerGui
+        gui.Parent = Player:FindFirstChildOfClass("PlayerGui") or Player:WaitForChild("PlayerGui")
     end
     compactModeGui = gui
 
+    -- Smaller Fluent-inspired acrylic panel.
     local frame = Instance.new("Frame")
     frame.Name = "ModePanel"
-    frame.Size = UDim2.fromOffset(350, modeName == "Fast Farm" and 335 or 305)
-    frame.Position = UDim2.fromOffset(25, 90)
-    frame.BackgroundColor3 = Color3.fromRGB(25, 30, 42)
-    frame.BackgroundTransparency = 0.18
+    frame.Size = UDim2.fromOffset(310, modeName == "Fast Farm" and 305 or 275)
+    frame.Position = UDim2.fromOffset(18, 85)
+    frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    frame.BackgroundTransparency = 0.02
     frame.BorderSizePixel = 0
     frame.ClipsDescendants = false
     frame.Active = true
     frame.Draggable = true
     frame.ZIndex = 2
     frame.Parent = gui
+    compactPanel = frame
 
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 14)
+    corner.CornerRadius = UDim.new(0, 12)
     corner.Parent = frame
 
     local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 2
-    stroke.Color = Color3.fromRGB(150,210,255)
-    stroke.Transparency = 0.05
+    stroke.Thickness = 1.5
+    stroke.Color = Color3.fromRGB(210, 225, 255)
+    stroke.Transparency = 0.18
     stroke.Parent = frame
 
     local gradient = Instance.new("UIGradient")
+    gradient.Name = "RainbowAcrylic"
     gradient.Color = rainbowColors
     gradient.Transparency = rainbowTransparency
-    gradient.Rotation = 25
+    gradient.Rotation = 0
+    gradient.Offset = Vector2.new(0, 0)
     gradient.Parent = frame
     table.insert(compactThemeGradients, gradient)
 
-    -- Keep the compact panel visibly rainbow-colored while it is in normal mode.
-    -- Night Mode cancels this animation and applies a dark, still-readable theme.
+    -- Animated rainbow movement across the PANEL itself.
     compactRainbowToken += 1
     local rainbowToken = compactRainbowToken
     task.spawn(function()
+        local offset = 0
         while compactModeGui == gui and gui.Parent and rainbowToken == compactRainbowToken do
-            if not compactNightMode then
-                for _, g in ipairs(compactThemeGradients) do
-                    if g and g.Parent then
-                        g.Rotation = (g.Rotation + 1) % 360
-                    end
-                end
+            if not compactNightMode and gradient.Parent then
+                offset = (offset + 0.006) % 1
+                gradient.Offset = Vector2.new(offset, 0)
             end
-            task.wait(0.035)
+            task.wait(0.03)
         end
     end)
 
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1,-58,0,34)
-    title.Position = UDim2.fromOffset(12,7)
+    title.Size = UDim2.new(1,-50,0,27)
+    title.Position = UDim2.fromOffset(10,6)
     title.BackgroundTransparency = 1
-    title.Text = "JOHNNY | " .. string.upper(modeName) .. " MODE"
+    title.Text = "JOHNNY | " .. string.upper(modeName)
     title.TextColor3 = Color3.new(1,1,1)
-    title.TextSize = 17
+    title.TextSize = 13
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 10
     title.Parent = frame
 
     local close = Instance.new("TextButton")
-    close.Size = UDim2.fromOffset(32,30)
-    close.Position = UDim2.new(1,-42,0,7)
-    close.BackgroundColor3 = Color3.fromRGB(190,55,80)
+    close.Size = UDim2.fromOffset(25,23)
+    close.Position = UDim2.new(1,-32,0,6)
+    close.BackgroundColor3 = compactActiveModeTheme.button
     close.BackgroundTransparency = 0.05
     close.BorderSizePixel = 0
-    close.Text = "X"
+    close.Text = "×"
     close.TextColor3 = Color3.new(1,1,1)
-    close.TextSize = 15
+    close.TextSize = 16
     close.Font = Enum.Font.GothamBold
-    close.ZIndex = 10
+    close.ZIndex = 11
     close.Parent = frame
-    Instance.new("UICorner", close).CornerRadius = UDim.new(0,7)
-    close.MouseButton1Click:Connect(destroyCompactMode)
+    Instance.new("UICorner", close).CornerRadius = UDim.new(0,6)
+
+    -- Small square reopen button. It stays alive when the panel is hidden.
+    local open = Instance.new("ImageButton")
+    open.Name = "JohnnyOpenButton"
+    open.Size = UDim2.fromOffset(42,42)
+    open.Position = UDim2.fromOffset(18,85)
+    open.BackgroundColor3 = Color3.fromRGB(24,27,38)
+    open.BackgroundTransparency = 0.08
+    open.BorderSizePixel = 0
+    open.Visible = false
+    open.ZIndex = 100
+    open.Parent = gui
+    compactOpenButton = open
+    Instance.new("UICorner", open).CornerRadius = UDim.new(0,9)
+    local openStroke = Instance.new("UIStroke")
+    openStroke.Thickness = 1.5
+    openStroke.Transparency = 0.15
+    openStroke.Color = compactActiveModeTheme.stroke
+    openStroke.Parent = open
+
+    -- Use the actual Roblox Game Pass thumbnail as the square reopen button icon.
+    -- Roblox supports rbxthumb thumbnails for GamePass assets.
+    local GAMEPASS_ID = 176454015
+    open.Image = "rbxthumb://type=GamePass&id=" .. tostring(GAMEPASS_ID) .. "&w=150&h=150"
+    open.ScaleType = Enum.ScaleType.Crop
+    open.ImageTransparency = 0
+    open.AutoButtonColor = true
+
+    local function showCompactPanel()
+        frame.Visible = true
+        open.Visible = false
+    end
+    local function hideCompactPanel()
+        frame.Visible = false
+        open.Visible = true
+    end
+    close.MouseButton1Click:Connect(hideCompactPanel)
+    open.MouseButton1Click:Connect(showCompactPanel)
 
     local content = Instance.new("Frame")
-    content.Size = UDim2.new(1,-24,1,-52)
-    content.Position = UDim2.fromOffset(12,48)
+    content.Size = UDim2.new(1,-18,1,-40)
+    content.Position = UDim2.fromOffset(9,35)
     content.BackgroundTransparency = 1
     content.ZIndex = 5
     content.Parent = frame
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0,4)
+    layout.Padding = UDim.new(0,3)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = content
 
     local status = Instance.new("TextLabel")
-    status.Size = UDim2.new(1,0,0,26)
+    status.Size = UDim2.new(1,0,0,20)
     status.BackgroundTransparency = 1
-    status.TextSize = 13
+    status.TextSize = 10.5
     status.Font = Enum.Font.GothamBold
     status.ZIndex = 10
     status.Parent = content
 
     local pace = Instance.new("TextLabel")
-    pace.Size = UDim2.new(1,0,0,34)
+    pace.Size = UDim2.new(1,0,0,25)
     pace.BackgroundTransparency = 1
-    pace.TextColor3 = Color3.fromRGB(255,245,130)
-    pace.TextSize = 13
+    pace.TextColor3 = Color3.fromRGB(255,250,220)
+    pace.TextSize = 10.5
     pace.Font = Enum.Font.GothamSemibold
     pace.TextWrapped = true
     pace.ZIndex = 10
     pace.Parent = content
 
     local stats = Instance.new("TextLabel")
-    stats.Size = UDim2.new(1,0,0,24)
+    stats.Size = UDim2.new(1,0,0,34)
     stats.BackgroundTransparency = 1
-    stats.TextColor3 = Color3.fromRGB(235,245,255)
-    stats.TextSize = 12
+    stats.TextColor3 = Color3.fromRGB(245,248,255)
+    stats.TextSize = 10
     stats.Font = Enum.Font.Gotham
+    stats.TextWrapped = true
     stats.ZIndex = 10
     stats.Parent = content
 
     local function refreshFarm()
         local ping = getPing()
-        local running = fastRepRunning
-        status.Text = string.format("Fast Farm: %s | %dms | PA: %s", running and "ON" or "OFF", math.floor(ping+0.5), pingAdjusterEnabled and "ON" or "OFF")
-        status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
+        status.Text = string.format("Fast Farm: %s | %dms | PA: %s", fastRepRunning and "ON" or "OFF", math.floor(ping+0.5), pingAdjusterEnabled and "ON" or "OFF")
+        status.TextColor3 = fastRepRunning and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,150,160)
         local h,d,w = getFarmPaceNumbers()
         pace.Text = string.format(compactPaceFormats[compactModePaceFormat].farm,h,d,w)
-        stats.Text = string.format(
-            "Strength: %s | Gained: %s\nDurability: %s | Gained: %s",
-            formatStatNumber(strengthStat.Value),
-            formatStatNumber(strengthStat.Value - initialStrength),
-            formatStatNumber(durabilityStat.Value),
-            formatStatNumber(durabilityStat.Value - initialDurability)
-        )
+        stats.Text = string.format("Strength: %s | +%s\nDurability: %s | +%s", formatStatNumber(strengthStat.Value), formatStatNumber(strengthStat.Value-initialStrength), formatStatNumber(durabilityStat.Value), formatStatNumber(durabilityStat.Value-initialDurability))
     end
 
     local function refreshReb()
-        local running = isFastRebirthRunning
-        status.Text = running and "Fast Rebirth: ON" or "Fast Rebirth: OFF"
-        status.TextColor3 = running and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,120,130)
+        status.Text = isFastRebirthRunning and "Fast Rebirth: ON" or "Fast Rebirth: OFF"
+        status.TextColor3 = isFastRebirthRunning and Color3.fromRGB(100,255,145) or Color3.fromRGB(255,150,160)
         pace.Text = string.format(compactPaceFormats[compactModePaceFormat].reb,formatRebirthNumber(averageTable(paceHistoryHour)),formatRebirthNumber(averageTable(paceHistoryDay)),formatRebirthNumber(averageTable(paceHistoryWeek)))
-        stats.Text = string.format(
-            "Rebirths: %s | Gained: %s",
-            formatRebirthNumber(rebirthsStat.Value),
-            formatRebirthNumber(rebirthsStat.Value - initialRebirths)
-        )
+        stats.Text = string.format("Rebirths: %s | Gained: %s", formatRebirthNumber(rebirthsStat.Value), formatRebirthNumber(rebirthsStat.Value-initialRebirths))
     end
 
     local startButton
+    if modeName == "Fast Farm" then
+        startButton = makeModeButton(content, "FAST FARM: OFF", function()
+            fastRepRunning = not fastRepRunning
+            if fastRepRunning then
+                startButton.Text = "FAST FARM: ON"
+                task.spawn(fastRepLoop)
+            else
+                startButton.Text = "FAST FARM: OFF"
+            end
+        end, 190)
+    else
+        startButton = makeModeButton(content, "FAST REBIRTH: OFF", function()
+            isFastRebirthRunning = not isFastRebirthRunning
+            if isFastRebirthRunning then
+                fastRebirthStartTime = tick()
+                startButton.Text = "FAST REBIRTH: ON"
+                task.spawn(fastRebirthLoop)
+            else
+                if fastRebirthStartTime then
+                    fastRebirthTotalElapsed = fastRebirthTotalElapsed + (tick() - fastRebirthStartTime)
+                end
+                startButton.Text = "FAST REBIRTH: OFF"
+            end
+        end, 190)
+    end
 
-if modeName == "Fast Farm" then
-    startButton = makeModeButton(content, "FAST FARM: OFF", function()
-        fastRepRunning = not fastRepRunning
-        if fastRepRunning then
-            startButton.Text = "FAST FARM: ON"
-            task.spawn(fastRepLoop)
-        else
-            startButton.Text = "FAST FARM: OFF"
-        end
-    end, 205)
-else
-    startButton = makeModeButton(content, "FAST REBIRTH: OFF", function()
-        isFastRebirthRunning = not isFastRebirthRunning
-        if isFastRebirthRunning then
-            fastRebirthStartTime = tick()
-            startButton.Text = "FAST REBIRTH: ON"
-            task.spawn(fastRebirthLoop)
-        else
-            fastRebirthTotalElapsed = fastRebirthTotalElapsed + (tick() - fastRebirthStartTime)
-            startButton.Text = "FAST REBIRTH: OFF"
-        end
-    end, 205)
-end
-
-    local theme = modeThemeColors[modeName] or modeThemeColors["Fast Farm"]
-
+    local theme = compactActiveModeTheme
     local function applyCompactTheme()
-        for _, g in ipairs(compactThemeGradients) do
-            if g and g.Parent then
-                if compactNightMode then
-                    g.Color = theme.night
-                    g.Transparency = NumberSequence.new(0.08)
-                else
-                    g.Color = rainbowColors
-                    g.Transparency = rainbowTransparency
-                end
-            end
-        end
-        for _, b in ipairs(compactThemeButtons) do
-            if b and b.Parent then
-                if compactNightMode then
-                    b.BackgroundColor3 = theme.button:Lerp(Color3.fromRGB(8, 10, 16), 0.45)
-                    b.BackgroundTransparency = 0.18
-                else
-                    b.BackgroundColor3 = theme.button
-                    b.BackgroundTransparency = 0.10
-                end
-            end
-        end
         if compactNightMode then
-            frame.BackgroundColor3 = Color3.fromRGB(13, 16, 23)
-            frame.BackgroundTransparency = 0.10
+            gradient.Color = theme.night
+            gradient.Transparency = NumberSequence.new(0.03)
+            frame.BackgroundColor3 = Color3.fromRGB(12,14,20)
+            frame.BackgroundTransparency = 0.05
             stroke.Color = theme.stroke
             stroke.Transparency = 0.18
         else
-            frame.BackgroundColor3 = Color3.fromRGB(25, 28, 42)
-            frame.BackgroundTransparency = 0.22
-            stroke.Color = Color3.fromRGB(180, 200, 255)
-            stroke.Transparency = 0.12
+            gradient.Color = rainbowColors
+            gradient.Transparency = rainbowTransparency
+            frame.BackgroundColor3 = Color3.fromRGB(255,255,255)
+            frame.BackgroundTransparency = 0.02
+            stroke.Color = Color3.fromRGB(225,235,255)
+            stroke.Transparency = 0.10
         end
+        for _, b in ipairs(compactThemeButtons) do
+            if b and b.Parent then
+                b.BackgroundColor3 = compactNightMode and theme.button:Lerp(Color3.fromRGB(7,9,15),0.30) or theme.button
+                b.BackgroundTransparency = compactNightMode and 0.12 or 0.08
+            end
+        end
+        close.BackgroundColor3 = theme.button
+        openStroke.Color = theme.stroke
     end
 
     local nightButton = makeModeButton(content, "NIGHT: OFF", function()
         compactNightMode = not compactNightMode
         nightButton.Text = compactNightMode and "NIGHT: ON" or "NIGHT: OFF"
         applyCompactTheme()
-    end, 110)
+    end, 88)
 
-    -- Time controls are UI-only controls for the game's Lighting clock.
+    -- Time controls are available in BOTH compact modes.
     local timeRow = Instance.new("Frame")
-    timeRow.Size = UDim2.new(1,0,0,27)
+    timeRow.Size = UDim2.new(1,0,0,23)
     timeRow.BackgroundTransparency = 1
     timeRow.Parent = content
     local tl = Instance.new("UIListLayout")
     tl.FillDirection = Enum.FillDirection.Horizontal
     tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    tl.Padding = UDim.new(0,4)
+    tl.Padding = UDim.new(0,3)
     tl.Parent = timeRow
-    makeModeButton(timeRow, "NIGHT", function() Lighting.ClockTime = 0 end, 75)
-    makeModeButton(timeRow, "DAY", function() Lighting.ClockTime = 12 end, 75)
-    makeModeButton(timeRow, "MIDNIGHT", function() Lighting.ClockTime = 6 end, 85)
-
+    makeModeButton(timeRow, "NIGHT", function() Lighting.ClockTime = 0 end, 58)
+    makeModeButton(timeRow, "DAY", function() Lighting.ClockTime = 12 end, 58)
+    makeModeButton(timeRow, "MIDNIGHT", function() Lighting.ClockTime = 6 end, 72)
 
     if modeName == "Fast Farm" then
-
         local row = Instance.new("Frame")
-        row.Size = UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
-        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
+        row.Size = UDim2.new(1,0,0,23); row.BackgroundTransparency=1; row.Parent=content
+        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,3)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do
-            makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,66)
+            makeModeButton(row,name,function() compactModePaceFormat=name; refreshFarm() end,61)
         end
 
         local pingRow=Instance.new("Frame")
-        pingRow.Size=UDim2.new(1,0,0,32); pingRow.BackgroundTransparency=1; pingRow.Parent=content
-        local pl=Instance.new("UIListLayout",pingRow); pl.FillDirection=Enum.FillDirection.Horizontal; pl.HorizontalAlignment=Enum.HorizontalAlignment.Center; pl.Padding=UDim.new(0,4)
+        pingRow.Size=UDim2.new(1,0,0,23); pingRow.BackgroundTransparency=1; pingRow.Parent=content
+        local pl=Instance.new("UIListLayout",pingRow); pl.FillDirection=Enum.FillDirection.Horizontal; pl.HorizontalAlignment=Enum.HorizontalAlignment.Center; pl.Padding=UDim.new(0,3)
         for _,x in ipairs({{"250/200",250,200},{"300/250",300,250},{"400/300",400,300},{"OFF",nil,nil}}) do
             makeModeButton(pingRow,x[1],function()
                 if x[2] then pausePing=x[2]; resumePing=x[3]; pingAdjusterEnabled=true else pingAdjusterEnabled=false; pingPaused=false end
                 refreshFarm()
-            end,68)
+            end,64)
         end
 
-        makeModeButton(content,"Industrial Gym Regular Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,235)
-        makeModeButton(content,"ANTI-LAG",function()
-            activateAntiLag()
-        end,235)
-
+        makeModeButton(content,"REGULAR SQUAT",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,135)
+        makeModeButton(content,"ANTI-LAG",function() activateAntiLag() end,135)
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshFarm(); task.wait(.5) end end)
         refreshFarm()
     else
-        local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
-        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
-        for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,66) end
-        makeModeButton(content,"Industrial Gym Super Squat",function()
-            local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end
-        end,220)
-        makeModeButton(content,"ANTI-LAG",function()
-            activateAntiLag()
-        end,220)
+        local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,23); row.BackgroundTransparency=1; row.Parent=content
+        local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,3)
+        for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,61) end
+        makeModeButton(content,"SUPER SQUAT",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,135)
+        makeModeButton(content,"ANTI-LAG",function() activateAntiLag() end,135)
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshReb(); task.wait(.5) end end)
         refreshReb()
     end
 
     applyCompactTheme()
-
-    -- Hand off completely to the selected mode: remove the full Elerium UI
-    -- immediately. The selected mode remains OFF until its START button is pressed.
     destroyMainUiForCompactMode()
 end
+
+-- The Elerium main UI buttons are registered only after the custom UI
+-- function exists. This removes the old forward-reference/timing problem.
+FarmingTab:AddButton("Fast Farm Mode", function()
+    openCompactMode("Fast Farm")
+end)
+
+FastRebTab:AddButton("Fast Reb Mode", function()
+    openCompactMode("Fast Rebirth")
+end)
 
 -- The Elerium main UI buttons are registered only after the custom UI
 -- function exists. This removes the old forward-reference/timing problem.
