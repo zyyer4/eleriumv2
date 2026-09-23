@@ -3707,9 +3707,6 @@ FarmingTab:AddButton("Fast Farm Mode", function()
     openCompactMode("Fast Farm")
 end)
 
-FastRebTab:AddButton("Fast Reb Mode", function()
-    openCompactMode("Fast Rebirth")
-end)
 
 -- The Elerium main UI buttons are registered only after the custom UI
 -- function exists. This removes the old forward-reference/timing problem.
