@@ -1783,7 +1783,6 @@ local FastRebTab =
 -- Forward declarations: these are referenced by the mode button callback
 -- before the main Fast Rebirth state/loop is declared below.
 local fastRebirthLoop
-local activateAntiLag
 local isFastRebirthRunning
 local fastRebirthStartTime
 local fastRebirthTotalElapsed
@@ -2353,95 +2352,33 @@ FastRebTab:AddSwitch(
 -- FAST REBIRTH ANTI LAG
 --========================================================--
 
-activateAntiLag = function()
+local compactAntiLagEnabled = false
 
-    local playerGui =
-        Player:WaitForChild("PlayerGui")
+local function activateAntiLag()
+    compactAntiLagEnabled = not compactAntiLagEnabled
 
-    for _, gui in ipairs(
-        playerGui:GetChildren()
-    ) do
-
-        if gui:IsA("ScreenGui") and gui.Name ~= "JohnnyCompactMode" then
-            pcall(function()
-                gui:Destroy()
-            end)
+    if compactAntiLagEnabled then
+        -- Performance mode: remove expensive visual effects without deleting the
+        -- player's UI, so the compact Mode window remains usable.
+        for _, object in ipairs(Lighting:GetChildren()) do
+            if object:IsA("Sky") or object:IsA("PostEffect") then
+                pcall(function() object:Destroy() end)
+            end
         end
 
-    end
-
-    for _, object in ipairs(
-        Lighting:GetChildren()
-    ) do
-
-        if object:IsA("Sky") then
-            pcall(function()
-                object:Destroy()
-            end)
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("ParticleEmitter")
+                or obj:IsA("Trail")
+                or obj:IsA("Beam")
+                or obj:IsA("PointLight")
+                or obj:IsA("SpotLight")
+                or obj:IsA("SurfaceLight") then
+                pcall(function() obj:Destroy() end)
+            end
         end
-
-    end
-
-    local darkSky =
-        Instance.new("Sky")
-
-    darkSky.Name =
-        "JohnnyDarkSky"
-
-    darkSky.SkyboxBk =
-        "rbxassetid://0"
-
-    darkSky.SkyboxDn =
-        "rbxassetid://0"
-
-    darkSky.SkyboxFt =
-        "rbxassetid://0"
-
-    darkSky.SkyboxLf =
-        "rbxassetid://0"
-
-    darkSky.SkyboxRt =
-        "rbxassetid://0"
-
-    darkSky.SkyboxUp =
-        "rbxassetid://0"
-
-    darkSky.Parent =
-        Lighting
-
-    Lighting.Brightness = 0
-    Lighting.ClockTime = 0
-    Lighting.TimeOfDay = "00:00:00"
-
-    Lighting.OutdoorAmbient =
-        Color3.new(0, 0, 0)
-
-    Lighting.Ambient =
-        Color3.new(0, 0, 0)
-
-    Lighting.FogColor =
-        Color3.new(0, 0, 0)
-
-    Lighting.FogEnd = 100
-
-    for _, obj in ipairs(
-        workspace:GetDescendants()
-    ) do
-
-        if obj:IsA("ParticleEmitter")
-            or obj:IsA("PointLight")
-            or obj:IsA("SpotLight")
-            or obj:IsA("SurfaceLight")
-        then
-
-            pcall(function()
-                obj:Destroy()
-            end)
-
-        end
-
     end
 end
+
 
 FastRebTab:AddButton(
     "Anti Lag",
@@ -3257,6 +3194,23 @@ local compactModePaceFormat = "Full"
 local compactNightMode = false
 local compactRainbowToken = 0
 local compactSavedClockTime = nil
+local compactThemeGradients = {}
+
+local rainbowColors = ColorSequence.new({
+    ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 70, 150)),
+    ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 150, 55)),
+    ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 235, 70)),
+    ColorSequenceKeypoint.new(0.50, Color3.fromRGB(65, 235, 125)),
+    ColorSequenceKeypoint.new(0.66, Color3.fromRGB(55, 210, 255)),
+    ColorSequenceKeypoint.new(0.83, Color3.fromRGB(115, 90, 255)),
+    ColorSequenceKeypoint.new(1.00, Color3.fromRGB(240, 65, 255))
+})
+local rainbowTransparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.10),
+    NumberSequenceKeypoint.new(0.5, 0.20),
+    NumberSequenceKeypoint.new(1, 0.10)
+})
+local darkThemeColors = ColorSequence.new(Color3.fromRGB(22, 25, 35), Color3.fromRGB(45, 50, 68))
 
 local compactPaceFormats = {
     Full = { reb = "Pace: %s / Hour | %s / Day | %s / Week", farm = "Strength: %s/H | %s/D | %s/W" },
@@ -3317,6 +3271,7 @@ local function destroyCompactMode()
     end
     compactNightMode = false
     compactSavedClockTime = nil
+    compactThemeGradients = {}
 
     if compactModeGui then
         pcall(function() compactModeGui:Destroy() end)
@@ -3351,9 +3306,16 @@ local function makeModeButton(parent, text, callback, width)
 
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = 1
-    stroke.Transparency = 0.35
+    stroke.Transparency = 0.30
     stroke.Color = Color3.fromRGB(210,230,255)
     stroke.Parent = button
+
+    local buttonGradient = Instance.new("UIGradient")
+    buttonGradient.Color = rainbowColors
+    buttonGradient.Transparency = rainbowTransparency
+    buttonGradient.Rotation = 25
+    buttonGradient.Parent = button
+    table.insert(compactThemeGradients, buttonGradient)
 
     button.MouseButton1Click:Connect(function()
         local ok, err = pcall(callback)
@@ -3426,22 +3388,11 @@ openCompactMode = function(modeName)
     stroke.Parent = frame
 
     local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 60, 120)),
-        ColorSequenceKeypoint.new(0.16, Color3.fromRGB(255, 170, 45)),
-        ColorSequenceKeypoint.new(0.33, Color3.fromRGB(245, 245, 70)),
-        ColorSequenceKeypoint.new(0.50, Color3.fromRGB(60, 235, 125)),
-        ColorSequenceKeypoint.new(0.66, Color3.fromRGB(55, 210, 255)),
-        ColorSequenceKeypoint.new(0.83, Color3.fromRGB(100, 90, 255)),
-        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(235, 60, 255))
-    })
-    gradient.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.08),
-        NumberSequenceKeypoint.new(0.5, 0.18),
-        NumberSequenceKeypoint.new(1, 0.28)
-    })
+    gradient.Color = rainbowColors
+    gradient.Transparency = rainbowTransparency
     gradient.Rotation = 25
     gradient.Parent = frame
+    table.insert(compactThemeGradients, gradient)
 
     -- Keep the compact panel visibly rainbow-colored while it is in normal mode.
     -- Night Mode cancels this animation and applies a dark, still-readable theme.
@@ -3450,7 +3401,11 @@ openCompactMode = function(modeName)
     task.spawn(function()
         while compactModeGui == gui and gui.Parent and rainbowToken == compactRainbowToken do
             if not compactNightMode then
-                gradient.Rotation = (gradient.Rotation + 1) % 360
+                for _, g in ipairs(compactThemeGradients) do
+                    if g and g.Parent then
+                        g.Rotation = (g.Rotation + 1) % 360
+                    end
+                end
             end
             task.wait(0.035)
         end
@@ -3590,11 +3545,16 @@ end
 
             -- Real dark theme: remove the rainbow layer, darken the panel,
             -- and keep the text/buttons readable.
-            gradient.Enabled = false
-            frame.BackgroundColor3 = Color3.fromRGB(9, 12, 22)
-            frame.BackgroundTransparency = 0.10
-            stroke.Color = Color3.fromRGB(70, 85, 125)
-            stroke.Transparency = 0.15
+            for _, g in ipairs(compactThemeGradients) do
+                if g and g.Parent then
+                    g.Color = darkThemeColors
+                    g.Transparency = NumberSequence.new(0.05)
+                end
+            end
+            frame.BackgroundColor3 = Color3.fromRGB(16, 18, 26)
+            frame.BackgroundTransparency = 0.16
+            stroke.Color = Color3.fromRGB(80, 90, 120)
+            stroke.Transparency = 0.12
             local anyRunning = (modeName == "Fast Farm" and fastRepRunning) or (modeName == "Fast Rebirth" and isFastRebirthRunning)
             status.TextColor3 = anyRunning and Color3.fromRGB(110, 255, 155) or Color3.fromRGB(255, 145, 155)
         else
@@ -3605,8 +3565,13 @@ end
             end
 
             -- Restore the colorful translucent rainbow theme.
-            gradient.Enabled = true
-            frame.BackgroundColor3 = Color3.fromRGB(45, 35, 75)
+            for _, g in ipairs(compactThemeGradients) do
+                if g and g.Parent then
+                    g.Color = rainbowColors
+                    g.Transparency = rainbowTransparency
+                end
+            end
+            frame.BackgroundColor3 = Color3.fromRGB(25, 28, 42)
             frame.BackgroundTransparency = 0.18
             stroke.Color = Color3.fromRGB(150, 210, 255)
             stroke.Transparency = 0.05
@@ -3634,9 +3599,7 @@ end
 
         makeModeButton(content,"Industrial Gym Regular Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5218,61,5412); task.wait(.2); pressE() end end,235)
         makeModeButton(content,"ANTI-LAG",function()
-            local ok, err = pcall(activateAntiLag)
-            if not ok then warn("[Johnny Compact] Anti-Lag error: " .. tostring(err)) end
-            refreshFarm()
+            activateAntiLag()
         end,235)
 
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshFarm(); task.wait(.5) end end)
@@ -3645,11 +3608,11 @@ end
         local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,32); row.BackgroundTransparency=1; row.Parent=content
         local rl=Instance.new("UIListLayout",row); rl.FillDirection=Enum.FillDirection.Horizontal; rl.HorizontalAlignment=Enum.HorizontalAlignment.Center; rl.Padding=UDim.new(0,4)
         for _,name in ipairs({"Full","Short","Compact","Mini"}) do makeModeButton(row,name,function() compactModePaceFormat=name; refreshReb() end,75) end
-        makeModeButton(content,"Industrial Gym Super Squat",function() local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end end,220)
+        makeModeButton(content,"Industrial Gym Super Squat",function()
+            local r=getRootPart(); if r then r.CFrame=CFrame.new(-5488,61,4641); task.wait(.2); pressE() end
+        end,220)
         makeModeButton(content,"ANTI-LAG",function()
-            local ok, err = pcall(activateAntiLag)
-            if not ok then warn("[Johnny Compact] Anti-Lag error: " .. tostring(err)) end
-            refreshReb()
+            activateAntiLag()
         end,220)
         task.spawn(function() while compactModeGui==gui and gui.Parent do refreshReb(); task.wait(.5) end end)
         refreshReb()
