@@ -185,1745 +185,6 @@ end)
 
 local MainTab = window:AddTab("          Main          ")
 
-MainTab:AddLabel("Settings").TextSize = 30
-
---========================================================--
--- SPEED
---========================================================--
-
-MainTab:AddTextBox("Speed", function(value)
-    local speed = tonumber(value)
-
-    if not speed then
-        return
-    end
-
-    _G.AutoSpeed = true
-
-    local humanoid = getHumanoid()
-
-    if humanoid then
-        humanoid.WalkSpeed = speed
-    end
-end)
-
---========================================================--
--- SIZE
---========================================================--
-
-MainTab:AddTextBox("Size", function(value)
-    local size = tonumber(value)
-
-    if not size then
-        return
-    end
-
-    _G.AutoSize = true
-
-    pcall(function()
-        changeSpeedSizeRemote:InvokeServer(
-            "changeSize",
-            size
-        )
-    end)
-end)
-
---========================================================--
--- ESSENTIALS
---========================================================--
-
-MainTab:AddLabel("Essenttals:").TextSize = 30
-
---========================================================--
--- REMOVE PORTALS
---========================================================--
-
-local function removePortals()
-    local function destroyPortal(obj)
-        if obj and obj.Name == "RobloxForwardPortals" then
-            pcall(function()
-                obj:Destroy()
-            end)
-        end
-    end
-
-    for _, obj in ipairs(game:GetDescendants()) do
-        destroyPortal(obj)
-    end
-
-    if _G.JohnnyPortalConnection then
-        pcall(function()
-            _G.JohnnyPortalConnection:Disconnect()
-        end)
-    end
-
-    _G.JohnnyPortalConnection =
-        game.DescendantAdded:Connect(function(obj)
-            if obj.Name == "RobloxForwardPortals" then
-                destroyPortal(obj)
-            end
-        end)
-end
-
-removePortals()
-
---========================================================--
--- INFINITE YIELD
---========================================================--
-
-MainTab:AddButton("Load Infinite Yield", function()
-    pcall(function()
-        loadstring(
-            game:HttpGet(
-                "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"
-            )
-        )()
-    end)
-end)
-
---========================================================--
--- ANTI LAG
---========================================================--
-
-MainTab:AddButton("Load Anti Lag", function()
-    pcall(function()
-        loadstring(
-            game:HttpGet(
-                "https://raw.githubusercontent.com/juywvm/-Roblox-Projects-/main/____Anti_Afk_Remastered_______"
-            )
-        )()
-    end)
-end)
-
---========================================================--
--- WALK ON WATER
---========================================================--
-
-local parts = {}
-
-local partSize = 2048
-local totalDistance = 50000
-local startPosition = Vector3.new(-2, -9.5, -2)
-
-local function createAllParts()
-    local numberOfParts =
-        math.ceil(totalDistance / partSize)
-
-    for x = 0, numberOfParts - 1 do
-        for z = 0, numberOfParts - 1 do
-
-            local function createPart(pos, name)
-                local part = Instance.new("Part")
-
-                part.Size =
-                    Vector3.new(
-                        partSize,
-                        1,
-                        partSize
-                    )
-
-                part.Position = pos
-                part.Anchored = true
-                part.Transparency = 1
-                part.CanCollide = false
-                part.Name = name
-                part.Parent = workspace
-
-                return part
-            end
-
-            table.insert(
-                parts,
-                createPart(
-                    startPosition +
-                    Vector3.new(
-                        x * partSize,
-                        0,
-                        z * partSize
-                    ),
-                    "Part_Side_" .. x .. "_" .. z
-                )
-            )
-
-            table.insert(
-                parts,
-                createPart(
-                    startPosition +
-                    Vector3.new(
-                        -x * partSize,
-                        0,
-                        z * partSize
-                    ),
-                    "Part_LeftRight_" .. x .. "_" .. z
-                )
-            )
-
-            table.insert(
-                parts,
-                createPart(
-                    startPosition +
-                    Vector3.new(
-                        -x * partSize,
-                        0,
-                        -z * partSize
-                    ),
-                    "Part_UpLeft_" .. x .. "_" .. z
-                )
-            )
-
-            table.insert(
-                parts,
-                createPart(
-                    startPosition +
-                    Vector3.new(
-                        x * partSize,
-                        0,
-                        -z * partSize
-                    ),
-                    "Part_UpRight_" .. x .. "_" .. z
-                )
-            )
-        end
-    end
-end
-
-task.spawn(createAllParts)
-
-local walkOnWaterSwitch =
-    MainTab:AddSwitch("Walk on Water", function(state)
-
-        for _, part in ipairs(parts) do
-            if part and part.Parent then
-                part.CanCollide = state
-            end
-        end
-
-    end)
-
-walkOnWaterSwitch:Set(false)
-
---========================================================--
--- PET VISIBILITY
---========================================================--
-
-MainTab:AddSwitch("Show Pets", function(state)
-    local value =
-        Player:FindFirstChild("hidePets")
-
-    if value then
-        value.Value = state
-    end
-end)
-
-MainTab:AddSwitch("Show Other Pets", function(state)
-    local value =
-        Player:FindFirstChild("showOtherPetsOn")
-
-    if value then
-        value.Value = state
-    end
-end)
-
---========================================================--
--- INFINITE JUMP
---========================================================--
-
-local infiniteJumpEnabled = false
-
-MainTab:AddSwitch("Infinite Jump", function(state)
-    infiniteJumpEnabled = state
-end)
-
-UserInputService.JumpRequest:Connect(function()
-    if not infiniteJumpEnabled then
-        return
-    end
-
-    local humanoid = getHumanoid()
-
-    if humanoid then
-        humanoid:ChangeState(
-            Enum.HumanoidStateType.Jumping
-        )
-    end
-end)
-
---========================================================--
--- TIME
---========================================================--
-
-MainTab:AddButton("Time: Night", function()
-    Lighting.ClockTime = 0
-end)
-
-MainTab:AddButton("Time: Day", function()
-    Lighting.ClockTime = 12
-end)
-
-MainTab:AddButton("Time: Midnight", function()
-    Lighting.ClockTime = 6
-end)
-
---========================================================--
--- ANTI FLING
---========================================================--
-
-local antiFlingVelocity = nil
-
-local antiKnockbackSwitch =
-    MainTab:AddSwitch("Anti Fling", function(state)
-
-        local rootPart = getRootPart()
-
-        if not rootPart then
-            return
-        end
-
-        if state then
-
-            if antiFlingVelocity then
-                pcall(function()
-                    antiFlingVelocity:Destroy()
-                end)
-            end
-
-            antiFlingVelocity =
-                Instance.new("BodyVelocity")
-
-            antiFlingVelocity.MaxForce =
-                Vector3.new(
-                    100000,
-                    0,
-                    100000
-                )
-
-            antiFlingVelocity.Velocity =
-                Vector3.zero
-
-            antiFlingVelocity.P = 1250
-
-            antiFlingVelocity.Parent =
-                rootPart
-
-        else
-
-            if antiFlingVelocity then
-                pcall(function()
-                    antiFlingVelocity:Destroy()
-                end)
-
-                antiFlingVelocity = nil
-            end
-
-            local existing =
-                rootPart:FindFirstChild("BodyVelocity")
-
-            if existing
-                and existing.MaxForce ==
-                    Vector3.new(100000, 0, 100000) then
-
-                pcall(function()
-                    existing:Destroy()
-                end)
-            end
-        end
-    end)
-
-antiKnockbackSwitch:Set(true)
-
---========================================================--
--- MAIN LOCK POSITION
---========================================================--
-
-local mainPositionLockConnection = nil
-
-local mainLockSwitch =
-    MainTab:AddSwitch("Lock Position", function(state)
-
-        if mainPositionLockConnection then
-            pcall(function()
-                mainPositionLockConnection:Disconnect()
-            end)
-
-            mainPositionLockConnection = nil
-        end
-
-        if not state then
-            return
-        end
-
-        local rootPart = getRootPart()
-
-        if not rootPart then
-            return
-        end
-
-        local lockedCFrame =
-            rootPart.CFrame
-
-        mainPositionLockConnection =
-            RunService.Heartbeat:Connect(function()
-
-                local currentRoot =
-                    getRootPart()
-
-                if currentRoot then
-                    currentRoot.CFrame =
-                        lockedCFrame
-                end
-            end)
-    end)
-
---========================================================--
--- REJOIN
---========================================================--
-
-MainTab:AddButton("Rejoin", function()
-
-    pcall(function()
-        TeleportService:TeleportToPlaceInstance(
-            game.PlaceId,
-            game.JobId,
-            Player
-        )
-    end)
-
-end)
-
---========================================================--
--- FAST REBIRTH TAB
---========================================================--
-
-local FastRebTab =
-    window:AddTab("Fast Rebirth")
-
---========================================================--
--- FAST REBIRTH UI
---========================================================--
-
-local isFastRebirthRunning = false
-local fastRebirthStartTime = 0
-local fastRebirthTotalElapsed = 0
-
-local initialRebirths =
-    rebirthsStat.Value
-
-local rebirthServerLabel =
-    FastRebTab:AddLabel("Time:")
-
-rebirthServerLabel.TextSize = 20
-
-local rebirthTimeLabel =
-    FastRebTab:AddLabel(
-        "0d 0h 0m 0s - Inactive"
-    )
-
-rebirthTimeLabel.TextSize = 17
-
-local rebirthPaceLabel =
-    FastRebTab:AddLabel(
-        "Pace: 0 / Hour | 0 / Day | 0 / Week"
-    )
-
-local rebirthAverageLabel =
-    FastRebTab:AddLabel(
-        "Average Pace: 0 / Hour | 0 / Day | 0 / Week"
-    )
-
-rebirthPaceLabel.TextSize = 17
-rebirthAverageLabel.TextSize = 17
-
-local rebirthStatsLabel =
-    FastRebTab:AddLabel(
-        "Rebirths: " ..
-        formatRebirthNumber(rebirthsStat.Value) ..
-        " | Gained: 0"
-    )
-
-rebirthStatsLabel.TextSize = 17
-
---========================================================--
--- FAST REBIRTH PACE
---========================================================--
-
-local lastRebirthTime = tick()
-local lastRebirthValue =
-    rebirthsStat.Value
-
-local paceHistoryHour = {}
-local paceHistoryDay = {}
-local paceHistoryWeek = {}
-
-local maxHistoryLength = 20
-local rebirthCount = 0
-
-local function updateRebirthsLabel()
-
-    local gained =
-        rebirthsStat.Value -
-        initialRebirths
-
-    rebirthStatsLabel.Text =
-        string.format(
-            "Rebirths: %s | Gained: %s",
-            formatRebirthNumber(
-                rebirthsStat.Value
-            ),
-            formatRebirthNumber(gained)
-        )
-end
-
-local function averageTable(tbl)
-
-    if #tbl == 0 then
-        return 0
-    end
-
-    local total = 0
-
-    for _, value in ipairs(tbl) do
-        total += value
-    end
-
-    return total / #tbl
-end
-
-local function calculateRebirthPace()
-
-    rebirthCount += 1
-
-    if rebirthCount < 2 then
-        lastRebirthTime = tick()
-        lastRebirthValue =
-            rebirthsStat.Value
-        return
-    end
-
-    local now = tick()
-
-    local gained =
-        rebirthsStat.Value -
-        lastRebirthValue
-
-    if gained <= 0 then
-        return
-    end
-
-    local elapsed =
-        now - lastRebirthTime
-
-    if elapsed <= 0 then
-        return
-    end
-
-    local perSecond =
-        gained / elapsed
-
-    local perHour =
-        perSecond * 3600
-
-    local perDay =
-        perSecond * 86400
-
-    local perWeek =
-        perSecond * 604800
-
-    rebirthPaceLabel.Text =
-        string.format(
-            "Pace: %s / Hour | %s / Day | %s / Week",
-            formatRebirthNumber(perHour),
-            formatRebirthNumber(perDay),
-            formatRebirthNumber(perWeek)
-        )
-
-    table.insert(
-        paceHistoryHour,
-        perHour
-    )
-
-    table.insert(
-        paceHistoryDay,
-        perDay
-    )
-
-    table.insert(
-        paceHistoryWeek,
-        perWeek
-    )
-
-    if #paceHistoryHour > maxHistoryLength then
-        table.remove(paceHistoryHour, 1)
-        table.remove(paceHistoryDay, 1)
-        table.remove(paceHistoryWeek, 1)
-    end
-
-    rebirthAverageLabel.Text =
-        string.format(
-            "Average Pace: %s / Hour | %s / Day | %s / Week",
-            formatRebirthNumber(
-                averageTable(paceHistoryHour)
-            ),
-            formatRebirthNumber(
-                averageTable(paceHistoryDay)
-            ),
-            formatRebirthNumber(
-                averageTable(paceHistoryWeek)
-            )
-        )
-
-    lastRebirthTime = now
-    lastRebirthValue =
-        rebirthsStat.Value
-end
-
-rebirthsStat:GetPropertyChangedSignal(
-    "Value"
-):Connect(function()
-
-    calculateRebirthPace()
-    updateRebirthsLabel()
-
-end)
-
---========================================================--
--- PET MANAGEMENT
---========================================================--
--- IMPORTANT:
--- Titanium Hydra is NEVER unequipped.
---
--- This allows the new 12-slot setup to keep
--- Titanium Hydra equipped while the script manages
--- Swift Samurai / Tribal Overlord.
---========================================================--
-
-local function getUniquePetsFolder()
-
-    local petsFolder =
-        Player:FindFirstChild("petsFolder")
-
-    if not petsFolder then
-        return nil
-    end
-
-    return petsFolder:FindFirstChild("Unique")
-end
-
-local function isProtectedPet(pet)
-
-    return pet
-        and pet.Name ==
-        "Titanium Hydra"
-end
-
-local function unequipAllExceptProtected()
-
-    local petsFolder =
-        Player:FindFirstChild("petsFolder")
-
-    if not petsFolder then
-        return
-    end
-
-    for _, folder in ipairs(
-        petsFolder:GetChildren()
-    ) do
-
-        if folder:IsA("Folder") then
-
-            for _, pet in ipairs(
-                folder:GetChildren()
-            ) do
-
-                if not isProtectedPet(pet) then
-
-                    pcall(function()
-                        equipPetEvent:FireServer(
-                            "unequipPet",
-                            pet
-                        )
-                    end)
-
-                end
-            end
-        end
-    end
-end
-
-local function equipPetByName(petName)
-
-    local uniquePets =
-        getUniquePetsFolder()
-
-    if not uniquePets then
-        return
-    end
-
-    for _, pet in ipairs(
-        uniquePets:GetChildren()
-    ) do
-
-        if pet.Name == petName then
-
-            pcall(function()
-                equipPetEvent:FireServer(
-                    "equipPet",
-                    pet
-                )
-            end)
-
-        end
-    end
-end
-
-local function managePets(petName)
-
-    -- Titanium Hydra stays equipped.
-    unequipAllExceptProtected()
-
-    task.wait(0.05)
-
-    -- Equip the requested pet.
-    equipPetByName(petName)
-
-end
-
---========================================================--
--- FAST REBIRTH LOGIC
---========================================================--
-
-local function doFastRebirth()
-
-    local currentRebirths =
-        rebirthsStat.Value
-
-    local strengthTarget =
-        5000 +
-        (currentRebirths * 2550)
-
-    while
-        isFastRebirthRunning
-        and
-        strengthStat.Value <
-        strengthTarget
-    do
-
-        local reps
-
-        if Player.MembershipType ==
-            Enum.MembershipType.Premium then
-
-            reps = 8
-
-        else
-
-            reps = 14
-
-        end
-
-        for _ = 1, reps do
-
-            if not isFastRebirthRunning then
-                break
-            end
-
-            pcall(function()
-                muscleEvent:FireServer("rep")
-            end)
-
-        end
-
-        task.wait(0.01)
-    end
-
-    if
-        isFastRebirthRunning
-        and
-        strengthStat.Value >=
-        strengthTarget
-    then
-
-        -- Keep Titanium Hydra equipped.
-        managePets("Tribal Overlord")
-
-        task.wait(0.1)
-
-        local before =
-            rebirthsStat.Value
-
-        repeat
-
-            pcall(function()
-                rebirthRemote:InvokeServer(
-                    "rebirthRequest"
-                )
-            end)
-
-            task.wait(0.05)
-
-        until
-            rebirthsStat.Value > before
-            or
-            not isFastRebirthRunning
-    end
-end
-
-local function fastRebirthLoop()
-
-    while isFastRebirthRunning do
-
-        -- Titanium Hydra remains equipped.
-        -- Swift Samurai is managed normally.
-        managePets("Swift Samurai")
-
-        doFastRebirth()
-
-        task.wait(0.05)
-    end
-
-end
-
---========================================================--
--- FAST REBIRTH SWITCH
---========================================================--
-
-FastRebTab:AddLabel("").TextSize = 10
-
-local rebirthingLabel =
-    FastRebTab:AddLabel("Rebirthing:")
-
-rebirthingLabel.TextSize = 20
-
-FastRebTab:AddSwitch(
-    "Fast Rebirth",
-    function(state)
-
-        if state then
-
-            if isFastRebirthRunning then
-                return
-            end
-
-            isFastRebirthRunning = true
-
-            fastRebirthStartTime =
-                tick()
-
-            task.spawn(
-                fastRebirthLoop
-            )
-
-        else
-
-            if not isFastRebirthRunning then
-                return
-            end
-
-            isFastRebirthRunning = false
-
-            fastRebirthTotalElapsed +=
-                tick() -
-                fastRebirthStartTime
-
-            rebirthTimeLabel.Text =
-                string.format(
-                    "%dd %dh %dm %ds - Paused",
-                    math.floor(
-                        fastRebirthTotalElapsed /
-                        86400
-                    ),
-                    math.floor(
-                        (
-                            fastRebirthTotalElapsed %
-                            86400
-                        ) / 3600
-                    ),
-                    math.floor(
-                        (
-                            fastRebirthTotalElapsed %
-                            3600
-                        ) / 60
-                    ),
-                    math.floor(
-                        fastRebirthTotalElapsed %
-                        60
-                    )
-                )
-
-        end
-
-    end
-)
-
---========================================================--
--- FAST REBIRTH TIMER
---========================================================--
-
-task.spawn(function()
-
-    while not _G.JohnnyScriptDestroyed do
-
-        if isFastRebirthRunning then
-
-            local elapsed =
-                tick() -
-                fastRebirthStartTime +
-                fastRebirthTotalElapsed
-
-            local days =
-                math.floor(
-                    elapsed / 86400
-                )
-
-            local hours =
-                math.floor(
-                    (elapsed % 86400) /
-                    3600
-                )
-
-            local minutes =
-                math.floor(
-                    (elapsed % 3600) /
-                    60
-                )
-
-            local seconds =
-                math.floor(
-                    elapsed % 60
-                )
-
-            rebirthTimeLabel.Text =
-                string.format(
-                    "%dd %dh %dm %ds - Rebirthing",
-                    days,
-                    hours,
-                    minutes,
-                    seconds
-                )
-
-            rebirthTimeLabel.TextColor3 =
-                Color3.fromRGB(
-                    50,
-                    255,
-                    50
-                )
-
-        else
-
-            rebirthTimeLabel.TextColor3 =
-                Color3.fromRGB(
-                    255,
-                    50,
-                    50
-                )
-
-        end
-
-        task.wait(0.1)
-    end
-
-end)
-
---========================================================--
--- SET SIZE 1
---========================================================--
-
-local size1Running = false
-
-FastRebTab:AddSwitch(
-    "Set Size 1",
-    function(state)
-
-        size1Running = state
-
-        if not state then
-            return
-        end
-
-        task.spawn(function()
-
-            while size1Running do
-
-                pcall(function()
-                    changeSpeedSizeRemote:InvokeServer(
-                        "changeSize",
-                        1
-                    )
-                end)
-
-                task.wait(0.01)
-            end
-
-        end)
-
-    end
-)
-
---========================================================--
--- FAST REBIRTH ANTI LAG
---========================================================--
-
-local function activateAntiLag()
-
-    local playerGui =
-        Player:WaitForChild("PlayerGui")
-
-    for _, gui in ipairs(
-        playerGui:GetChildren()
-    ) do
-
-        if gui:IsA("ScreenGui") then
-            pcall(function()
-                gui:Destroy()
-            end)
-        end
-
-    end
-
-    for _, object in ipairs(
-        Lighting:GetChildren()
-    ) do
-
-        if object:IsA("Sky") then
-            pcall(function()
-                object:Destroy()
-            end)
-        end
-
-    end
-
-    local darkSky =
-        Instance.new("Sky")
-
-    darkSky.Name =
-        "JohnnyDarkSky"
-
-    darkSky.SkyboxBk =
-        "rbxassetid://0"
-
-    darkSky.SkyboxDn =
-        "rbxassetid://0"
-
-    darkSky.SkyboxFt =
-        "rbxassetid://0"
-
-    darkSky.SkyboxLf =
-        "rbxassetid://0"
-
-    darkSky.SkyboxRt =
-        "rbxassetid://0"
-
-    darkSky.SkyboxUp =
-        "rbxassetid://0"
-
-    darkSky.Parent =
-        Lighting
-
-    Lighting.Brightness = 0
-    Lighting.ClockTime = 0
-    Lighting.TimeOfDay = "00:00:00"
-
-    Lighting.OutdoorAmbient =
-        Color3.new(0, 0, 0)
-
-    Lighting.Ambient =
-        Color3.new(0, 0, 0)
-
-    Lighting.FogColor =
-        Color3.new(0, 0, 0)
-
-    Lighting.FogEnd = 100
-
-    for _, obj in ipairs(
-        workspace:GetDescendants()
-    ) do
-
-        if obj:IsA("ParticleEmitter")
-            or obj:IsA("PointLight")
-            or obj:IsA("SpotLight")
-            or obj:IsA("SurfaceLight")
-        then
-
-            pcall(function()
-                obj:Destroy()
-            end)
-
-        end
-
-    end
-end
-
-FastRebTab:AddButton(
-    "Anti Lag",
-    activateAntiLag
-)
-
---========================================================--
--- FAST REBIRTH LOCK POSITION
---========================================================--
-
-local fastLockRunning = false
-local fastLockConnection = nil
-
-FastRebTab:AddSwitch(
-    "Lock Position",
-    function(state)
-
-        fastLockRunning = state
-
-        if fastLockConnection then
-
-            pcall(function()
-                fastLockConnection:Disconnect()
-            end)
-
-            fastLockConnection = nil
-        end
-
-        if not state then
-            return
-        end
-
-        local rootPart =
-            getRootPart()
-
-        if not rootPart then
-            return
-        end
-
-        local lockedPosition =
-            rootPart.Position
-
-        fastLockConnection =
-            RunService.Heartbeat:Connect(
-                function()
-
-                    local currentRoot =
-                        getRootPart()
-
-                    if currentRoot then
-
-                        currentRoot.Velocity =
-                            Vector3.zero
-
-                        currentRoot.RotVelocity =
-                            Vector3.zero
-
-                        currentRoot.CFrame =
-                            CFrame.new(
-                                lockedPosition
-                            )
-
-                    end
-                end
-            )
-    end
-)
-
---========================================================--
--- AUTO SHAKE
---========================================================--
-
-local autoShakeRunning = false
-
-local function activateShake()
-
-    local tool =
-        getTool("Tropical Shake")
-
-    if tool then
-
-        pcall(function()
-            muscleEvent:FireServer(
-                "tropicalShake",
-                tool
-            )
-        end)
-
-    end
-end
-
-task.spawn(function()
-
-    while not _G.JohnnyScriptDestroyed do
-
-        if autoShakeRunning then
-            activateShake()
-            task.wait(450)
-        else
-            task.wait(1)
-        end
-
-    end
-
-end)
-
-local autoShakeSwitch =
-    FastRebTab:AddSwitch(
-        "Auto Shake",
-        function(state)
-
-            autoShakeRunning = state
-
-            if state then
-                activateShake()
-            end
-
-        end
-    )
-
-autoShakeSwitch:Set(false)
-
---========================================================--
--- FAST REBIRTH FORTUNE WHEEL
---========================================================--
-
-local fortuneWheelRunning = false
-local fortuneWheelLoopId = 0
-_G.JohnnyAutoSpinWheel = false
-
-local function spinFortuneWheelOnce()
-    local ok, result = pcall(function()
-
-        local events =
-            ReplicatedStorage:WaitForChild(
-                "rEvents",
-                5
-            )
-
-        local remote =
-            events:WaitForChild(
-                "openFortuneWheelRemote",
-                5
-            )
-
-        local chances =
-            ReplicatedStorage:WaitForChild(
-                "fortuneWheelChances",
-                5
-            )
-
-        local wheel =
-            chances:WaitForChild(
-                "Fortune Wheel",
-                5
-            )
-
-        return remote:InvokeServer(
-            "openFortuneWheel",
-            wheel
-        )
-    end)
-
-    if not ok then
-        warn("[Johnny] Fortune Wheel failed:", result)
-        return false
-    end
-
-    return true
-end
-
-local function setFortuneWheel(state)
-    fortuneWheelRunning = state
-    fortuneWheelLoopId += 1
-
-    local myLoopId = fortuneWheelLoopId
-
-    if not state then
-        return
-    end
-
-    task.spawn(function()
-
-        while
-            fortuneWheelRunning
-            and
-            myLoopId == fortuneWheelLoopId
-            and
-            not _G.JohnnyScriptDestroyed
-        do
-
-            spinFortuneWheelOnce()
-            task.wait(1)
-        end
-    end)
-end
-
-FastRebTab:AddSwitch(
-    "Spin Fortune Wheel",
-    function(state)
-        setFortuneWheel(state)
-    end
-)
-
---========================================================--
--- JUNGLE LIFT
---========================================================--
-
-local function pressE()
-    VirtualInputManager:SendKeyEvent(
-        true,
-        Enum.KeyCode.E,
-        false,
-        game
-    )
-
-    task.wait(0.05)
-
-    VirtualInputManager:SendKeyEvent(
-        false,
-        Enum.KeyCode.E,
-        false,
-        game
-    )
-end
-
-FastRebTab:AddButton(
-    "Jungle Lift",
-    function()
-
-        local root =
-            getRootPart()
-
-        if not root then
-            return
-        end
-
-        root.CFrame =
-            CFrame.new(
-                -8642.396484375,
-                6.7980651855,
-                2086.1030273
-            )
-
-        task.wait(0.2)
-
-        pressE()
-
-    end
-)
-
---========================================================--
--- REBIRTH TAB
---========================================================--
-
-local RebirthTab =
-    window:AddTab("Rebirth")
-
---========================================================--
--- REBIRTH OPTIONS
---========================================================--
-
-RebirthTab:AddLabel("").TextSize = 10
-RebirthTab:AddLabel("Rebirth Options").TextSize = 20
-
-local rebirthTarget = 1
-
-local targetRebirthActive = false
-local infiniteRebirthActive = false
-
-local targetToggle
-local infiniteToggle
-
-RebirthTab:AddTextBox(
-    "Rebirth Target",
-    function(value)
-
-        local number =
-            tonumber(value)
-
-        if number and number > 0 then
-
-            rebirthTarget =
-                math.floor(number)
-
-        end
-    end
-)
-
-targetToggle =
-    RebirthTab:AddSwitch(
-        "Auto Rebirth Target",
-        function(state)
-
-            targetRebirthActive =
-                state
-
-            if not state then
-                return
-            end
-
-            infiniteRebirthActive =
-                false
-
-            if infiniteToggle then
-
-                pcall(function()
-                    infiniteToggle:Set(false)
-                end)
-
-            end
-
-            task.spawn(function()
-
-                while targetRebirthActive do
-
-                    local statsFolder =
-                        Player:FindFirstChild(
-                            "leaderstats"
-                        )
-
-                    local rebirths =
-                        statsFolder
-                        and
-                        statsFolder:
-                        FindFirstChild(
-                            "Rebirths"
-                        )
-
-                    if
-                        rebirths
-                        and
-                        rebirths.Value >=
-                        rebirthTarget
-                    then
-
-                        targetRebirthActive =
-                            false
-
-                        pcall(function()
-                            targetToggle:Set(
-                                false
-                            )
-                        end)
-
-                        break
-                    end
-
-                    pcall(function()
-                        rebirthRemote:
-                        InvokeServer(
-                            "rebirthRequest"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-            end)
-        end
-    )
-
-infiniteToggle =
-    RebirthTab:AddSwitch(
-        "Auto Rebirth (Infinitely)",
-        function(state)
-
-            infiniteRebirthActive =
-                state
-
-            if not state then
-                return
-            end
-
-            targetRebirthActive =
-                false
-
-            if targetToggle then
-
-                pcall(function()
-                    targetToggle:Set(false)
-                end)
-
-            end
-
-            task.spawn(function()
-
-                while infiniteRebirthActive do
-
-                    pcall(function()
-                        rebirthRemote:
-                        InvokeServer(
-                            "rebirthRequest"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-
-            end)
-        end
-    )
-
-
---========================================================--
--- TOOLS TAB
---========================================================--
-
-
-local ToolsTab =
-    window:AddTab("Tools")
-
---========================================================--
--- AUTO EXERCISES
---========================================================--
-
-ToolsTab:AddLabel("").TextSize = 10
-ToolsTab:AddLabel("Auto Exercises").TextSize = 20
-
-local function addAutoExercise(
-    exerciseName
-)
-
-    local key =
-        "JohnnyAuto" ..
-        exerciseName:gsub(
-            "%s",
-            ""
-        )
-
-    ToolsTab:AddSwitch(
-        "Auto " .. exerciseName,
-        function(state)
-
-            _G[key] = state
-
-            if not state then
-                return
-            end
-
-            task.spawn(function()
-
-                while _G[key] do
-
-                    local character =
-                        Player.Character
-
-                    local backpack =
-                        Player.Backpack
-
-                    local tool =
-                        (
-                            character
-                            and
-                            character:FindFirstChild(
-                                exerciseName
-                            )
-                        )
-                        or
-                        (
-                            backpack
-                            and
-                            backpack:FindFirstChild(
-                                exerciseName
-                            )
-                        )
-
-                    if tool and character then
-
-                        local humanoid =
-                            character:
-                            FindFirstChildOfClass(
-                                "Humanoid"
-                            )
-
-                        if humanoid
-                            and
-                            tool.Parent ==
-                            backpack
-                        then
-
-                            pcall(function()
-                                humanoid:EquipTool(
-                                    tool
-                                )
-                            end)
-                        end
-                    end
-
-                    pcall(function()
-                        muscleEvent:FireServer(
-                            "rep"
-                        )
-                    end)
-
-                    task.wait(0.1)
-                end
-            end)
-        end
-    )
-end
-
-addAutoExercise("Weight")
-addAutoExercise("Pushups")
-addAutoExercise("Handstands")
-addAutoExercise("Situps")
-addAutoExercise("Punch")
-
---========================================================--
--- FAST TOOLS
---========================================================--
-
-ToolsTab:AddLabel("").TextSize = 10
-ToolsTab:AddLabel("Fast Tools").TextSize = 20
-
-ToolsTab:AddSwitch(
-    "Fast Tools",
-    function(state)
-
-        _G.JohnnyFastTools =
-            state
-
-        local settings = {
-
-            {
-                "Punch",
-                "attackTime",
-                state and 0 or 0.35
-            },
-
-            {
-                "Ground Slam",
-                "attackTime",
-                state and 0 or 6
-            },
-
-            {
-                "Stomp",
-                "attackTime",
-                state and 0 or 7
-            },
-
-            {
-                "Handstands",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Pushups",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Weight",
-                "repTime",
-                state and 0 or 1
-            },
-
-            {
-                "Situps",
-                "repTime",
-                state and 0 or 1
-            }
-        }
-
-        local backpack =
-            Player:WaitForChild(
-                "Backpack"
-            )
-
-        for _, entry in ipairs(
-            settings
-        ) do
-
-            local toolName =
-                entry[1]
-
-            local attributeName =
-                entry[2]
-
-            local value =
-                entry[3]
-
-            local tool =
-                backpack:FindFirstChild(
-                    toolName
-                )
-                or
-                (
-                    Player.Character
-                    and
-                    Player.Character:
-                    FindFirstChild(
-                        toolName
-                    )
-                )
-
-            local object =
-                tool and
-                tool:FindFirstChild(
-                    attributeName
-                )
-
-            if object then
-
-                pcall(function()
-                    object.Value =
-                        value
-                end)
-
-            end
-        end
-    end
-)
-
---========================================================--
--- GYM TELEPORTS
---========================================================--
-
-ToolsTab:AddLabel("").TextSize = 10
-ToolsTab:AddLabel("Gym Teleports").TextSize = 20
-
-local gymLocations = {
-
-    ["Jungle Bench Press"] =
-        CFrame.new(
-            -8173,
-            64,
-            1898
-        ),
-
-    ["Jungle Pull Ups"] =
-        CFrame.new(
-            -8666,
-            34,
-            2070
-        ),
-
-    ["Jungle Boulder"] =
-        CFrame.new(
-            -8621,
-            34,
-            2684
-        )
-}
-
-for name, target in pairs(
-    gymLocations
-) do
-
-    ToolsTab:AddButton(
-        name,
-        function()
-
-            local root =
-                getRootPart()
-
-            if not root then
-                return
-            end
-
-            root.CFrame =
-                target
-
-            task.wait(0.2)
-
-            pressE()
-
-        end
-    )
-end
-
 --========================================================--
 -- FAST FARM TAB
 --========================================================--
@@ -3137,6 +1398,1823 @@ FarmingTab:AddButton(
 
     end
 )
+
+
+MainTab:AddLabel("Settings").TextSize = 30
+
+--========================================================--
+-- SPEED
+--========================================================--
+
+MainTab:AddTextBox("Speed", function(value)
+    local speed = tonumber(value)
+
+    if not speed then
+        return
+    end
+
+    _G.AutoSpeed = true
+
+    local humanoid = getHumanoid()
+
+    if humanoid then
+        humanoid.WalkSpeed = speed
+    end
+end)
+
+--========================================================--
+-- SIZE
+--========================================================--
+
+MainTab:AddTextBox("Size", function(value)
+    local size = tonumber(value)
+
+    if not size then
+        return
+    end
+
+    _G.AutoSize = true
+
+    pcall(function()
+        changeSpeedSizeRemote:InvokeServer(
+            "changeSize",
+            size
+        )
+    end)
+end)
+
+--========================================================--
+-- ESSENTIALS
+--========================================================--
+
+MainTab:AddLabel("Essenttals:").TextSize = 30
+
+--========================================================--
+-- REMOVE PORTALS
+--========================================================--
+
+local function removePortals()
+    local function destroyPortal(obj)
+        if obj and obj.Name == "RobloxForwardPortals" then
+            pcall(function()
+                obj:Destroy()
+            end)
+        end
+    end
+
+    for _, obj in ipairs(game:GetDescendants()) do
+        destroyPortal(obj)
+    end
+
+    if _G.JohnnyPortalConnection then
+        pcall(function()
+            _G.JohnnyPortalConnection:Disconnect()
+        end)
+    end
+
+    _G.JohnnyPortalConnection =
+        game.DescendantAdded:Connect(function(obj)
+            if obj.Name == "RobloxForwardPortals" then
+                destroyPortal(obj)
+            end
+        end)
+end
+
+removePortals()
+
+--========================================================--
+-- INFINITE YIELD
+--========================================================--
+
+MainTab:AddButton("Load Infinite Yield", function()
+    pcall(function()
+        loadstring(
+            game:HttpGet(
+                "https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"
+            )
+        )()
+    end)
+end)
+
+--========================================================--
+-- ANTI LAG
+--========================================================--
+
+MainTab:AddButton("Load Anti Lag", function()
+    pcall(function()
+        loadstring(
+            game:HttpGet(
+                "https://raw.githubusercontent.com/juywvm/-Roblox-Projects-/main/____Anti_Afk_Remastered_______"
+            )
+        )()
+    end)
+end)
+
+--========================================================--
+-- WALK ON WATER
+--========================================================--
+
+local parts = {}
+
+local partSize = 2048
+local totalDistance = 50000
+local startPosition = Vector3.new(-2, -9.5, -2)
+
+local function createAllParts()
+    local numberOfParts =
+        math.ceil(totalDistance / partSize)
+
+    for x = 0, numberOfParts - 1 do
+        for z = 0, numberOfParts - 1 do
+
+            local function createPart(pos, name)
+                local part = Instance.new("Part")
+
+                part.Size =
+                    Vector3.new(
+                        partSize,
+                        1,
+                        partSize
+                    )
+
+                part.Position = pos
+                part.Anchored = true
+                part.Transparency = 1
+                part.CanCollide = false
+                part.Name = name
+                part.Parent = workspace
+
+                return part
+            end
+
+            table.insert(
+                parts,
+                createPart(
+                    startPosition +
+                    Vector3.new(
+                        x * partSize,
+                        0,
+                        z * partSize
+                    ),
+                    "Part_Side_" .. x .. "_" .. z
+                )
+            )
+
+            table.insert(
+                parts,
+                createPart(
+                    startPosition +
+                    Vector3.new(
+                        -x * partSize,
+                        0,
+                        z * partSize
+                    ),
+                    "Part_LeftRight_" .. x .. "_" .. z
+                )
+            )
+
+            table.insert(
+                parts,
+                createPart(
+                    startPosition +
+                    Vector3.new(
+                        -x * partSize,
+                        0,
+                        -z * partSize
+                    ),
+                    "Part_UpLeft_" .. x .. "_" .. z
+                )
+            )
+
+            table.insert(
+                parts,
+                createPart(
+                    startPosition +
+                    Vector3.new(
+                        x * partSize,
+                        0,
+                        -z * partSize
+                    ),
+                    "Part_UpRight_" .. x .. "_" .. z
+                )
+            )
+        end
+    end
+end
+
+task.spawn(createAllParts)
+
+local walkOnWaterSwitch =
+    MainTab:AddSwitch("Walk on Water", function(state)
+
+        for _, part in ipairs(parts) do
+            if part and part.Parent then
+                part.CanCollide = state
+            end
+        end
+
+    end)
+
+walkOnWaterSwitch:Set(false)
+
+--========================================================--
+-- PET VISIBILITY
+--========================================================--
+
+MainTab:AddSwitch("Show Pets", function(state)
+    local value =
+        Player:FindFirstChild("hidePets")
+
+    if value then
+        value.Value = state
+    end
+end)
+
+MainTab:AddSwitch("Show Other Pets", function(state)
+    local value =
+        Player:FindFirstChild("showOtherPetsOn")
+
+    if value then
+        value.Value = state
+    end
+end)
+
+--========================================================--
+-- INFINITE JUMP
+--========================================================--
+
+local infiniteJumpEnabled = false
+
+MainTab:AddSwitch("Infinite Jump", function(state)
+    infiniteJumpEnabled = state
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if not infiniteJumpEnabled then
+        return
+    end
+
+    local humanoid = getHumanoid()
+
+    if humanoid then
+        humanoid:ChangeState(
+            Enum.HumanoidStateType.Jumping
+        )
+    end
+end)
+
+--========================================================--
+-- TIME
+--========================================================--
+
+MainTab:AddButton("Time: Night", function()
+    Lighting.ClockTime = 0
+end)
+
+MainTab:AddButton("Time: Day", function()
+    Lighting.ClockTime = 12
+end)
+
+MainTab:AddButton("Time: Midnight", function()
+    Lighting.ClockTime = 6
+end)
+
+--========================================================--
+-- ANTI FLING
+--========================================================--
+
+local antiFlingVelocity = nil
+
+local antiKnockbackSwitch =
+    MainTab:AddSwitch("Anti Fling", function(state)
+
+        local rootPart = getRootPart()
+
+        if not rootPart then
+            return
+        end
+
+        if state then
+
+            if antiFlingVelocity then
+                pcall(function()
+                    antiFlingVelocity:Destroy()
+                end)
+            end
+
+            antiFlingVelocity =
+                Instance.new("BodyVelocity")
+
+            antiFlingVelocity.MaxForce =
+                Vector3.new(
+                    100000,
+                    0,
+                    100000
+                )
+
+            antiFlingVelocity.Velocity =
+                Vector3.zero
+
+            antiFlingVelocity.P = 1250
+
+            antiFlingVelocity.Parent =
+                rootPart
+
+        else
+
+            if antiFlingVelocity then
+                pcall(function()
+                    antiFlingVelocity:Destroy()
+                end)
+
+                antiFlingVelocity = nil
+            end
+
+            local existing =
+                rootPart:FindFirstChild("BodyVelocity")
+
+            if existing
+                and existing.MaxForce ==
+                    Vector3.new(100000, 0, 100000) then
+
+                pcall(function()
+                    existing:Destroy()
+                end)
+            end
+        end
+    end)
+
+antiKnockbackSwitch:Set(true)
+
+--========================================================--
+-- MAIN LOCK POSITION
+--========================================================--
+
+local mainPositionLockConnection = nil
+
+local mainLockSwitch =
+    MainTab:AddSwitch("Lock Position", function(state)
+
+        if mainPositionLockConnection then
+            pcall(function()
+                mainPositionLockConnection:Disconnect()
+            end)
+
+            mainPositionLockConnection = nil
+        end
+
+        if not state then
+            return
+        end
+
+        local rootPart = getRootPart()
+
+        if not rootPart then
+            return
+        end
+
+        local lockedCFrame =
+            rootPart.CFrame
+
+        mainPositionLockConnection =
+            RunService.Heartbeat:Connect(function()
+
+                local currentRoot =
+                    getRootPart()
+
+                if currentRoot then
+                    currentRoot.CFrame =
+                        lockedCFrame
+                end
+            end)
+    end)
+
+--========================================================--
+-- REJOIN
+--========================================================--
+
+MainTab:AddButton("Rejoin", function()
+
+    pcall(function()
+        TeleportService:TeleportToPlaceInstance(
+            game.PlaceId,
+            game.JobId,
+            Player
+        )
+    end)
+
+end)
+
+--========================================================--
+-- FAST REBIRTH TAB
+--========================================================--
+
+local FastRebTab =
+    window:AddTab("Fast Rebirth")
+
+--========================================================--
+-- FAST REBIRTH UI
+--========================================================--
+
+local isFastRebirthRunning = false
+local fastRebirthStartTime = 0
+local fastRebirthTotalElapsed = 0
+
+local initialRebirths =
+    rebirthsStat.Value
+
+local rebirthServerLabel =
+    FastRebTab:AddLabel("Time:")
+
+rebirthServerLabel.TextSize = 20
+
+local rebirthTimeLabel =
+    FastRebTab:AddLabel(
+        "0d 0h 0m 0s - Inactive"
+    )
+
+rebirthTimeLabel.TextSize = 17
+
+local rebirthPaceLabel =
+    FastRebTab:AddLabel(
+        "Pace: 0 / Hour | 0 / Day | 0 / Week"
+    )
+
+local rebirthAverageLabel =
+    FastRebTab:AddLabel(
+        "Average Pace: 0 / Hour | 0 / Day | 0 / Week"
+    )
+
+rebirthPaceLabel.TextSize = 17
+rebirthAverageLabel.TextSize = 17
+
+local rebirthStatsLabel =
+    FastRebTab:AddLabel(
+        "Rebirths: " ..
+        formatRebirthNumber(rebirthsStat.Value) ..
+        " | Gained: 0"
+    )
+
+rebirthStatsLabel.TextSize = 17
+
+--========================================================--
+-- FAST REBIRTH PACE
+--========================================================--
+
+local lastRebirthTime = tick()
+local lastRebirthValue =
+    rebirthsStat.Value
+
+local paceHistoryHour = {}
+local paceHistoryDay = {}
+local paceHistoryWeek = {}
+
+local maxHistoryLength = 20
+local rebirthCount = 0
+
+local function updateRebirthsLabel()
+
+    local gained =
+        rebirthsStat.Value -
+        initialRebirths
+
+    rebirthStatsLabel.Text =
+        string.format(
+            "Rebirths: %s | Gained: %s",
+            formatRebirthNumber(
+                rebirthsStat.Value
+            ),
+            formatRebirthNumber(gained)
+        )
+end
+
+local function averageTable(tbl)
+
+    if #tbl == 0 then
+        return 0
+    end
+
+    local total = 0
+
+    for _, value in ipairs(tbl) do
+        total += value
+    end
+
+    return total / #tbl
+end
+
+local function calculateRebirthPace()
+
+    rebirthCount += 1
+
+    if rebirthCount < 2 then
+        lastRebirthTime = tick()
+        lastRebirthValue =
+            rebirthsStat.Value
+        return
+    end
+
+    local now = tick()
+
+    local gained =
+        rebirthsStat.Value -
+        lastRebirthValue
+
+    if gained <= 0 then
+        return
+    end
+
+    local elapsed =
+        now - lastRebirthTime
+
+    if elapsed <= 0 then
+        return
+    end
+
+    local perSecond =
+        gained / elapsed
+
+    local perHour =
+        perSecond * 3600
+
+    local perDay =
+        perSecond * 86400
+
+    local perWeek =
+        perSecond * 604800
+
+    rebirthPaceLabel.Text =
+        string.format(
+            "Pace: %s / Hour | %s / Day | %s / Week",
+            formatRebirthNumber(perHour),
+            formatRebirthNumber(perDay),
+            formatRebirthNumber(perWeek)
+        )
+
+    table.insert(
+        paceHistoryHour,
+        perHour
+    )
+
+    table.insert(
+        paceHistoryDay,
+        perDay
+    )
+
+    table.insert(
+        paceHistoryWeek,
+        perWeek
+    )
+
+    if #paceHistoryHour > maxHistoryLength then
+        table.remove(paceHistoryHour, 1)
+        table.remove(paceHistoryDay, 1)
+        table.remove(paceHistoryWeek, 1)
+    end
+
+    rebirthAverageLabel.Text =
+        string.format(
+            "Average Pace: %s / Hour | %s / Day | %s / Week",
+            formatRebirthNumber(
+                averageTable(paceHistoryHour)
+            ),
+            formatRebirthNumber(
+                averageTable(paceHistoryDay)
+            ),
+            formatRebirthNumber(
+                averageTable(paceHistoryWeek)
+            )
+        )
+
+    lastRebirthTime = now
+    lastRebirthValue =
+        rebirthsStat.Value
+end
+
+rebirthsStat:GetPropertyChangedSignal(
+    "Value"
+):Connect(function()
+
+    calculateRebirthPace()
+    updateRebirthsLabel()
+
+end)
+
+--========================================================--
+-- PET MANAGEMENT
+--========================================================--
+-- IMPORTANT:
+-- Titanium Hydra is NEVER unequipped.
+--
+-- This allows the new 12-slot setup to keep
+-- Titanium Hydra equipped while the script manages
+-- Swift Samurai / Tribal Overlord.
+--========================================================--
+
+local function getUniquePetsFolder()
+
+    local petsFolder =
+        Player:FindFirstChild("petsFolder")
+
+    if not petsFolder then
+        return nil
+    end
+
+    return petsFolder:FindFirstChild("Unique")
+end
+
+local function isProtectedPet(pet)
+
+    return pet
+        and pet.Name ==
+        "Titanium Hydra"
+end
+
+local function unequipAllExceptProtected()
+
+    local petsFolder =
+        Player:FindFirstChild("petsFolder")
+
+    if not petsFolder then
+        return
+    end
+
+    for _, folder in ipairs(
+        petsFolder:GetChildren()
+    ) do
+
+        if folder:IsA("Folder") then
+
+            for _, pet in ipairs(
+                folder:GetChildren()
+            ) do
+
+                if not isProtectedPet(pet) then
+
+                    pcall(function()
+                        equipPetEvent:FireServer(
+                            "unequipPet",
+                            pet
+                        )
+                    end)
+
+                end
+            end
+        end
+    end
+end
+
+local function equipPetByName(petName)
+
+    local uniquePets =
+        getUniquePetsFolder()
+
+    if not uniquePets then
+        return
+    end
+
+    for _, pet in ipairs(
+        uniquePets:GetChildren()
+    ) do
+
+        if pet.Name == petName then
+
+            pcall(function()
+                equipPetEvent:FireServer(
+                    "equipPet",
+                    pet
+                )
+            end)
+
+        end
+    end
+end
+
+local function managePets(petName)
+
+    -- Titanium Hydra stays equipped.
+    unequipAllExceptProtected()
+
+    task.wait(0.05)
+
+    -- Equip the requested pet.
+    equipPetByName(petName)
+
+end
+
+--========================================================--
+-- FAST REBIRTH LOGIC
+--========================================================--
+
+local function doFastRebirth()
+
+    local currentRebirths =
+        rebirthsStat.Value
+
+    local strengthTarget =
+        5000 +
+        (currentRebirths * 2550)
+
+    while
+        isFastRebirthRunning
+        and
+        strengthStat.Value <
+        strengthTarget
+    do
+
+        local reps
+
+        if Player.MembershipType ==
+            Enum.MembershipType.Premium then
+
+            reps = 8
+
+        else
+
+            reps = 14
+
+        end
+
+        for _ = 1, reps do
+
+            if not isFastRebirthRunning then
+                break
+            end
+
+            pcall(function()
+                muscleEvent:FireServer("rep")
+            end)
+
+        end
+
+        task.wait(0.01)
+    end
+
+    if
+        isFastRebirthRunning
+        and
+        strengthStat.Value >=
+        strengthTarget
+    then
+
+        -- Keep Titanium Hydra equipped.
+        managePets("Tribal Overlord")
+
+        task.wait(0.1)
+
+        local before =
+            rebirthsStat.Value
+
+        repeat
+
+            pcall(function()
+                rebirthRemote:InvokeServer(
+                    "rebirthRequest"
+                )
+            end)
+
+            task.wait(0.05)
+
+        until
+            rebirthsStat.Value > before
+            or
+            not isFastRebirthRunning
+    end
+end
+
+local function fastRebirthLoop()
+
+    while isFastRebirthRunning do
+
+        -- Titanium Hydra remains equipped.
+        -- Swift Samurai is managed normally.
+        managePets("Swift Samurai")
+
+        doFastRebirth()
+
+        task.wait(0.05)
+    end
+
+end
+
+--========================================================--
+-- FAST REBIRTH SWITCH
+--========================================================--
+
+FastRebTab:AddLabel("").TextSize = 10
+
+local rebirthingLabel =
+    FastRebTab:AddLabel("Rebirthing:")
+
+rebirthingLabel.TextSize = 20
+
+FastRebTab:AddSwitch(
+    "Fast Rebirth",
+    function(state)
+
+        if state then
+
+            if isFastRebirthRunning then
+                return
+            end
+
+            isFastRebirthRunning = true
+
+            fastRebirthStartTime =
+                tick()
+
+            task.spawn(
+                fastRebirthLoop
+            )
+
+        else
+
+            if not isFastRebirthRunning then
+                return
+            end
+
+            isFastRebirthRunning = false
+
+            fastRebirthTotalElapsed +=
+                tick() -
+                fastRebirthStartTime
+
+            rebirthTimeLabel.Text =
+                string.format(
+                    "%dd %dh %dm %ds - Paused",
+                    math.floor(
+                        fastRebirthTotalElapsed /
+                        86400
+                    ),
+                    math.floor(
+                        (
+                            fastRebirthTotalElapsed %
+                            86400
+                        ) / 3600
+                    ),
+                    math.floor(
+                        (
+                            fastRebirthTotalElapsed %
+                            3600
+                        ) / 60
+                    ),
+                    math.floor(
+                        fastRebirthTotalElapsed %
+                        60
+                    )
+                )
+
+        end
+
+    end
+)
+
+--========================================================--
+-- FAST REBIRTH TIMER
+--========================================================--
+
+task.spawn(function()
+
+    while not _G.JohnnyScriptDestroyed do
+
+        if isFastRebirthRunning then
+
+            local elapsed =
+                tick() -
+                fastRebirthStartTime +
+                fastRebirthTotalElapsed
+
+            local days =
+                math.floor(
+                    elapsed / 86400
+                )
+
+            local hours =
+                math.floor(
+                    (elapsed % 86400) /
+                    3600
+                )
+
+            local minutes =
+                math.floor(
+                    (elapsed % 3600) /
+                    60
+                )
+
+            local seconds =
+                math.floor(
+                    elapsed % 60
+                )
+
+            rebirthTimeLabel.Text =
+                string.format(
+                    "%dd %dh %dm %ds - Rebirthing",
+                    days,
+                    hours,
+                    minutes,
+                    seconds
+                )
+
+            rebirthTimeLabel.TextColor3 =
+                Color3.fromRGB(
+                    50,
+                    255,
+                    50
+                )
+
+        else
+
+            rebirthTimeLabel.TextColor3 =
+                Color3.fromRGB(
+                    255,
+                    50,
+                    50
+                )
+
+        end
+
+        task.wait(0.1)
+    end
+
+end)
+
+--========================================================--
+-- SET SIZE 1
+--========================================================--
+
+local size1Running = false
+
+FastRebTab:AddSwitch(
+    "Set Size 1",
+    function(state)
+
+        size1Running = state
+
+        if not state then
+            return
+        end
+
+        task.spawn(function()
+
+            while size1Running do
+
+                pcall(function()
+                    changeSpeedSizeRemote:InvokeServer(
+                        "changeSize",
+                        1
+                    )
+                end)
+
+                task.wait(0.01)
+            end
+
+        end)
+
+    end
+)
+
+--========================================================--
+-- FAST REBIRTH ANTI LAG
+--========================================================--
+
+local function activateAntiLag()
+
+    local playerGui =
+        Player:WaitForChild("PlayerGui")
+
+    for _, gui in ipairs(
+        playerGui:GetChildren()
+    ) do
+
+        if gui:IsA("ScreenGui") then
+            pcall(function()
+                gui:Destroy()
+            end)
+        end
+
+    end
+
+    for _, object in ipairs(
+        Lighting:GetChildren()
+    ) do
+
+        if object:IsA("Sky") then
+            pcall(function()
+                object:Destroy()
+            end)
+        end
+
+    end
+
+    local darkSky =
+        Instance.new("Sky")
+
+    darkSky.Name =
+        "JohnnyDarkSky"
+
+    darkSky.SkyboxBk =
+        "rbxassetid://0"
+
+    darkSky.SkyboxDn =
+        "rbxassetid://0"
+
+    darkSky.SkyboxFt =
+        "rbxassetid://0"
+
+    darkSky.SkyboxLf =
+        "rbxassetid://0"
+
+    darkSky.SkyboxRt =
+        "rbxassetid://0"
+
+    darkSky.SkyboxUp =
+        "rbxassetid://0"
+
+    darkSky.Parent =
+        Lighting
+
+    Lighting.Brightness = 0
+    Lighting.ClockTime = 0
+    Lighting.TimeOfDay = "00:00:00"
+
+    Lighting.OutdoorAmbient =
+        Color3.new(0, 0, 0)
+
+    Lighting.Ambient =
+        Color3.new(0, 0, 0)
+
+    Lighting.FogColor =
+        Color3.new(0, 0, 0)
+
+    Lighting.FogEnd = 100
+
+    for _, obj in ipairs(
+        workspace:GetDescendants()
+    ) do
+
+        if obj:IsA("ParticleEmitter")
+            or obj:IsA("PointLight")
+            or obj:IsA("SpotLight")
+            or obj:IsA("SurfaceLight")
+        then
+
+            pcall(function()
+                obj:Destroy()
+            end)
+
+        end
+
+    end
+end
+
+FastRebTab:AddButton(
+    "Anti Lag",
+    activateAntiLag
+)
+
+--========================================================--
+-- FAST REBIRTH LOCK POSITION
+--========================================================--
+
+local fastLockRunning = false
+local fastLockConnection = nil
+
+FastRebTab:AddSwitch(
+    "Lock Position",
+    function(state)
+
+        fastLockRunning = state
+
+        if fastLockConnection then
+
+            pcall(function()
+                fastLockConnection:Disconnect()
+            end)
+
+            fastLockConnection = nil
+        end
+
+        if not state then
+            return
+        end
+
+        local rootPart =
+            getRootPart()
+
+        if not rootPart then
+            return
+        end
+
+        local lockedPosition =
+            rootPart.Position
+
+        fastLockConnection =
+            RunService.Heartbeat:Connect(
+                function()
+
+                    local currentRoot =
+                        getRootPart()
+
+                    if currentRoot then
+
+                        currentRoot.Velocity =
+                            Vector3.zero
+
+                        currentRoot.RotVelocity =
+                            Vector3.zero
+
+                        currentRoot.CFrame =
+                            CFrame.new(
+                                lockedPosition
+                            )
+
+                    end
+                end
+            )
+    end
+)
+
+--========================================================--
+-- AUTO SHAKE
+--========================================================--
+
+local autoShakeRunning = false
+
+local function activateShake()
+
+    local tool =
+        getTool("Tropical Shake")
+
+    if tool then
+
+        pcall(function()
+            muscleEvent:FireServer(
+                "tropicalShake",
+                tool
+            )
+        end)
+
+    end
+end
+
+task.spawn(function()
+
+    while not _G.JohnnyScriptDestroyed do
+
+        if autoShakeRunning then
+            activateShake()
+            task.wait(450)
+        else
+            task.wait(1)
+        end
+
+    end
+
+end)
+
+local autoShakeSwitch =
+    FastRebTab:AddSwitch(
+        "Auto Shake",
+        function(state)
+
+            autoShakeRunning = state
+
+            if state then
+                activateShake()
+            end
+
+        end
+    )
+
+autoShakeSwitch:Set(false)
+
+--========================================================--
+-- FAST REBIRTH FORTUNE WHEEL
+--========================================================--
+
+local fortuneWheelRunning = false
+local fortuneWheelLoopId = 0
+_G.JohnnyAutoSpinWheel = false
+
+local function describeInstance(label, object)
+    if object == nil then
+        warn("[Johnny] Fortune Wheel: " .. label .. " = NIL")
+        return false
+    end
+
+    print(
+        "[Johnny] Fortune Wheel: "
+        .. label
+        .. " = "
+        .. object:GetFullName()
+        .. " ["
+        .. object.ClassName
+        .. "]"
+    )
+
+    return true
+end
+
+local function spinFortuneWheelOnce()
+    print("[Johnny] Fortune Wheel: starting diagnostic spin")
+
+    local ok, result = pcall(function()
+
+        local events =
+            ReplicatedStorage:FindFirstChild("rEvents")
+
+        if not describeInstance("rEvents", events) then
+            return false, "rEvents was not found in ReplicatedStorage"
+        end
+
+        local remote =
+            events:FindFirstChild("openFortuneWheelRemote")
+
+        if not describeInstance(
+            "openFortuneWheelRemote",
+            remote
+        ) then
+            return false,
+                "openFortuneWheelRemote was not found under rEvents"
+        end
+
+        if not remote:IsA("RemoteFunction") then
+            return false,
+                "openFortuneWheelRemote is "
+                .. remote.ClassName
+                .. ", not RemoteFunction"
+        end
+
+        local chances =
+            ReplicatedStorage:FindFirstChild(
+                "fortuneWheelChances"
+            )
+
+        if not describeInstance(
+            "fortuneWheelChances",
+            chances
+        ) then
+            return false,
+                "fortuneWheelChances was not found in ReplicatedStorage"
+        end
+
+        local wheel =
+            chances:FindFirstChild("Fortune Wheel")
+
+        if not describeInstance(
+            "Fortune Wheel",
+            wheel
+        ) then
+            return false,
+                "Fortune Wheel was not found under fortuneWheelChances"
+        end
+
+        print(
+            "[Johnny] Fortune Wheel: invoking remote..."
+        )
+
+        local invokeOk, serverResult =
+            pcall(function()
+                return remote:InvokeServer(
+                    "openFortuneWheel",
+                    wheel
+                )
+            end)
+
+        if not invokeOk then
+            warn(
+                "[Johnny] Fortune Wheel SERVER/REMOTE ERROR: "
+                .. tostring(serverResult)
+            )
+
+            return false, serverResult
+        end
+
+        print(
+            "[Johnny] Fortune Wheel: server returned:",
+            serverResult
+        )
+
+        return true, serverResult
+    end)
+
+    if not ok then
+        warn(
+            "[Johnny] Fortune Wheel LOCAL ERROR: "
+            .. tostring(result)
+        )
+        return false
+    end
+
+    if result == false then
+        return false
+    end
+
+    return true
+end
+
+local function setFortuneWheel(state)
+    fortuneWheelRunning = state
+    fortuneWheelLoopId += 1
+
+    local myLoopId = fortuneWheelLoopId
+
+    if not state then
+        print("[Johnny] Fortune Wheel: stopped")
+        return
+    end
+
+    task.spawn(function()
+
+        while
+            fortuneWheelRunning
+            and
+            myLoopId == fortuneWheelLoopId
+            and
+            not _G.JohnnyScriptDestroyed
+        do
+
+            spinFortuneWheelOnce()
+            task.wait(1)
+        end
+    end)
+end
+
+FastRebTab:AddSwitch(
+    "Spin Fortune Wheel",
+    function(state)
+        setFortuneWheel(state)
+    end
+)
+
+--========================================================--
+-- JUNGLE LIFT
+--========================================================--
+
+local function pressE()
+    VirtualInputManager:SendKeyEvent(
+        true,
+        Enum.KeyCode.E,
+        false,
+        game
+    )
+
+    task.wait(0.05)
+
+    VirtualInputManager:SendKeyEvent(
+        false,
+        Enum.KeyCode.E,
+        false,
+        game
+    )
+end
+
+FastRebTab:AddButton(
+    "Jungle Lift",
+    function()
+
+        local root =
+            getRootPart()
+
+        if not root then
+            return
+        end
+
+        root.CFrame =
+            CFrame.new(
+                -8642.396484375,
+                6.7980651855,
+                2086.1030273
+            )
+
+        task.wait(0.2)
+
+        pressE()
+
+    end
+)
+
+--========================================================--
+-- REBIRTH TAB
+--========================================================--
+
+local RebirthTab =
+    window:AddTab("Rebirth")
+
+--========================================================--
+-- REBIRTH OPTIONS
+--========================================================--
+
+RebirthTab:AddLabel("").TextSize = 10
+RebirthTab:AddLabel("Rebirth Options").TextSize = 20
+
+local rebirthTarget = 1
+
+local targetRebirthActive = false
+local infiniteRebirthActive = false
+
+local targetToggle
+local infiniteToggle
+
+RebirthTab:AddTextBox(
+    "Rebirth Target",
+    function(value)
+
+        local number =
+            tonumber(value)
+
+        if number and number > 0 then
+
+            rebirthTarget =
+                math.floor(number)
+
+        end
+    end
+)
+
+targetToggle =
+    RebirthTab:AddSwitch(
+        "Auto Rebirth Target",
+        function(state)
+
+            targetRebirthActive =
+                state
+
+            if not state then
+                return
+            end
+
+            infiniteRebirthActive =
+                false
+
+            if infiniteToggle then
+
+                pcall(function()
+                    infiniteToggle:Set(false)
+                end)
+
+            end
+
+            task.spawn(function()
+
+                while targetRebirthActive do
+
+                    local statsFolder =
+                        Player:FindFirstChild(
+                            "leaderstats"
+                        )
+
+                    local rebirths =
+                        statsFolder
+                        and
+                        statsFolder:
+                        FindFirstChild(
+                            "Rebirths"
+                        )
+
+                    if
+                        rebirths
+                        and
+                        rebirths.Value >=
+                        rebirthTarget
+                    then
+
+                        targetRebirthActive =
+                            false
+
+                        pcall(function()
+                            targetToggle:Set(
+                                false
+                            )
+                        end)
+
+                        break
+                    end
+
+                    pcall(function()
+                        rebirthRemote:
+                        InvokeServer(
+                            "rebirthRequest"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    )
+
+infiniteToggle =
+    RebirthTab:AddSwitch(
+        "Auto Rebirth (Infinitely)",
+        function(state)
+
+            infiniteRebirthActive =
+                state
+
+            if not state then
+                return
+            end
+
+            targetRebirthActive =
+                false
+
+            if targetToggle then
+
+                pcall(function()
+                    targetToggle:Set(false)
+                end)
+
+            end
+
+            task.spawn(function()
+
+                while infiniteRebirthActive do
+
+                    pcall(function()
+                        rebirthRemote:
+                        InvokeServer(
+                            "rebirthRequest"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+
+            end)
+        end
+    )
+
+
+--========================================================--
+-- TOOLS TAB
+--========================================================--
+
+
+local ToolsTab =
+    window:AddTab("Tools")
+
+--========================================================--
+-- AUTO EXERCISES
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Auto Exercises").TextSize = 20
+
+local function addAutoExercise(
+    exerciseName
+)
+
+    local key =
+        "JohnnyAuto" ..
+        exerciseName:gsub(
+            "%s",
+            ""
+        )
+
+    ToolsTab:AddSwitch(
+        "Auto " .. exerciseName,
+        function(state)
+
+            _G[key] = state
+
+            if not state then
+                return
+            end
+
+            task.spawn(function()
+
+                while _G[key] do
+
+                    local character =
+                        Player.Character
+
+                    local backpack =
+                        Player.Backpack
+
+                    local tool =
+                        (
+                            character
+                            and
+                            character:FindFirstChild(
+                                exerciseName
+                            )
+                        )
+                        or
+                        (
+                            backpack
+                            and
+                            backpack:FindFirstChild(
+                                exerciseName
+                            )
+                        )
+
+                    if tool and character then
+
+                        local humanoid =
+                            character:
+                            FindFirstChildOfClass(
+                                "Humanoid"
+                            )
+
+                        if humanoid
+                            and
+                            tool.Parent ==
+                            backpack
+                        then
+
+                            pcall(function()
+                                humanoid:EquipTool(
+                                    tool
+                                )
+                            end)
+                        end
+                    end
+
+                    pcall(function()
+                        muscleEvent:FireServer(
+                            "rep"
+                        )
+                    end)
+
+                    task.wait(0.1)
+                end
+            end)
+        end
+    )
+end
+
+addAutoExercise("Weight")
+addAutoExercise("Pushups")
+addAutoExercise("Handstands")
+addAutoExercise("Situps")
+addAutoExercise("Punch")
+
+--========================================================--
+-- FAST TOOLS
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Fast Tools").TextSize = 20
+
+ToolsTab:AddSwitch(
+    "Fast Tools",
+    function(state)
+
+        _G.JohnnyFastTools =
+            state
+
+        local settings = {
+
+            {
+                "Punch",
+                "attackTime",
+                state and 0 or 0.35
+            },
+
+            {
+                "Ground Slam",
+                "attackTime",
+                state and 0 or 6
+            },
+
+            {
+                "Stomp",
+                "attackTime",
+                state and 0 or 7
+            },
+
+            {
+                "Handstands",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Pushups",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Weight",
+                "repTime",
+                state and 0 or 1
+            },
+
+            {
+                "Situps",
+                "repTime",
+                state and 0 or 1
+            }
+        }
+
+        local backpack =
+            Player:WaitForChild(
+                "Backpack"
+            )
+
+        for _, entry in ipairs(
+            settings
+        ) do
+
+            local toolName =
+                entry[1]
+
+            local attributeName =
+                entry[2]
+
+            local value =
+                entry[3]
+
+            local tool =
+                backpack:FindFirstChild(
+                    toolName
+                )
+                or
+                (
+                    Player.Character
+                    and
+                    Player.Character:
+                    FindFirstChild(
+                        toolName
+                    )
+                )
+
+            local object =
+                tool and
+                tool:FindFirstChild(
+                    attributeName
+                )
+
+            if object then
+
+                pcall(function()
+                    object.Value =
+                        value
+                end)
+
+            end
+        end
+    end
+)
+
+--========================================================--
+-- GYM TELEPORTS
+--========================================================--
+
+ToolsTab:AddLabel("").TextSize = 10
+ToolsTab:AddLabel("Gym Teleports").TextSize = 20
+
+local gymLocations = {
+
+    ["Jungle Bench Press"] =
+        CFrame.new(
+            -8173,
+            64,
+            1898
+        ),
+
+    ["Jungle Pull Ups"] =
+        CFrame.new(
+            -8666,
+            34,
+            2070
+        ),
+
+    ["Jungle Boulder"] =
+        CFrame.new(
+            -8621,
+            34,
+            2684
+        )
+}
+
+for name, target in pairs(
+    gymLocations
+) do
+
+    ToolsTab:AddButton(
+        name,
+        function()
+
+            local root =
+                getRootPart()
+
+            if not root then
+                return
+            end
+
+            root.CFrame =
+                target
+
+            task.wait(0.2)
+
+            pressE()
+
+        end
+    )
+end
 
 --========================================================--
 -- INFO TAB
